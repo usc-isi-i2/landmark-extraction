@@ -13,8 +13,9 @@ from extraction.Landmark import RuleSet
 
 current_id = None
 
-with codecs.open("lib/rules.zip", "r", "utf-8") as myfile:
+with codecs.open("rules.txt", "r", "utf-8") as myfile:
     json_str = myfile.read().encode('utf-8')
+#sys.stderr.write("Got rules:" + json_str)
 json_object = json.loads(json_str)
 rules = RuleSet(json_object)
 
@@ -22,15 +23,15 @@ rules = RuleSet(json_object)
 for line in sys.stdin:
     # remove leading and trailing whitespace
     line = line.strip()
-    idx = line.find("\t")
-    if idx != -1:
-        key = line[0:idx]
-        value = line[idx+1:]
+    sys.stderr.write("Got line:" + line)
+    if len(line) > 0:
         try:
-            body_json = json.loads(value, encoding='utf-8')
+            body_json = json.loads(line, encoding='utf-8')
             if body_json.get("html"):
                 html = body_json["html"]
-                extraction_list = rules.extract(html)
+		key = body_json["@id"]
+                sys.stderr.write("Got html:" + html)
+		extraction_list = rules.extract(html)
                 print key + "\t" + json.dumps(extraction_list)
         except:
             pass
