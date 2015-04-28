@@ -1,6 +1,6 @@
 zip -r landmark.zip extraction postprocessing
 mv landmark.zip landmark.mod
-mv arguntrader_rules.py rules.zip
+mv arguntrader_rules.txt rules.txt
 
 
 nohup time hadoop jar /usr/lib/hadoop-mapreduce/hadoop-streaming.jar \
