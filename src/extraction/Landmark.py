@@ -15,11 +15,16 @@
 
 import sys
 import getopt
-import re, json
+import re
+import json
 import abc
 import codecs
 import cgi
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from postprocessing.PostProcessor import RemoveHtml
+
 
 MAX_EXTRACT_LENGTH=100000
 ITEM_RULE = 'ItemRule'
