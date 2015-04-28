@@ -60,3 +60,9 @@ target/
 #PyDev
 *.pydevproject
 .project
+.idea/*
+
+sample/sample_files/*
+sample/rule_files/*
+sample/sample_json_files/*
+
