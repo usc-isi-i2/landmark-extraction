@@ -8,7 +8,7 @@ nohup time hadoop jar /usr/lib/hadoop-mapreduce/hadoop-streaming.jar \
     -D mapred.reduce.tasks=10 \
     -libjars /home/ubuntu/landmark-extraction/karma-mr.jar \
     -file /home/ubuntu/landmark-extraction/src/mr_landmark_mapper.py \
-    -file /home/ubuntu/landmark-extraction/src/rules.zip \
+    -file /home/ubuntu/landmark-extraction/src/rules.txt \
     -file /home/ubuntu/landmark-extraction/src/landmark.mod \
     -mapper /home/ubuntu/landmark-extraction/src/mr_landmark_mapper.py \
     -file /home/ubuntu/landmark-extraction/src/mr_landmark_reducer.py \

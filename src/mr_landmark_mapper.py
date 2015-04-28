@@ -29,9 +29,9 @@ for line in sys.stdin:
             body_json = json.loads(line, encoding='utf-8')
             if body_json.get("html"):
                 html = body_json["html"]
-		key = body_json["@id"]
-                sys.stderr.write("Got html:" + html)
-		extraction_list = rules.extract(html)
+                key = body_json["@id"]
+                #sys.stderr.write("Got html:" + html)
+                extraction_list = rules.extract(html)
                 print key + "\t" + json.dumps(extraction_list)
         except:
             pass
