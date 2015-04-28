@@ -3,8 +3,9 @@
 import sys
 import json
 import codecs
-
+import traceback
 import zipimport
+
 importer = zipimport.zipimporter('landmark.mod')
 extraction = importer.load_module('extraction')
 postprocessing = importer.load_module('postprocessing')
@@ -23,17 +24,22 @@ rules = RuleSet(json_object)
 for line in sys.stdin:
     # remove leading and trailing whitespace
     line = line.strip()
-    sys.stderr.write("Got line:" + line)
+#    sys.stderr.write("\nGot line:" + line)
     if len(line) > 0:
         try:
             body_json = json.loads(line, encoding='utf-8')
             if body_json.get("html"):
                 html = body_json["html"]
                 key = body_json["@id"]
-                #sys.stderr.write("Got html:" + html)
+ #               sys.stderr.write("\nGot html:" + html)
                 extraction_list = rules.extract(html)
-                print key + "\t" + json.dumps(extraction_list)
+ #               sys.stderr.write("\nGot extraction:" + str(extraction_list))
+		print key + "\t" + json.dumps(extraction_list)
         except:
+	    exc_type, exc_value, exc_traceback = sys.exc_info()
+            lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+            sys.stderr.write("\nError in Mapper:" + str(lines))
+            sys.stderr.write("\nError was caused by data:" + line)
             pass
 
 exit(0)
