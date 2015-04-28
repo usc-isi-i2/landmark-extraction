@@ -41,12 +41,12 @@ def main(argv=None):
                 with codecs.open(full_name, "r", "utf-8") as myfile:
                     page_str = myfile.read().encode("utf-8")
 
-                page_json = json.dumps({'html': page_str})
+                page_json = json.dumps({'@id': (prefix+filename), 'html': page_str})
 
                 out_filename = os.path.join(out_dir_name, filename)
                 print "Writing to file:" + out_filename
                 with codecs.open(out_filename, "w", "utf-8") as out_stream:
-                    out_stream.write(prefix + filename + "\t" + page_json)
+                    out_stream.write(page_json)
 
 
     except Usage, err:

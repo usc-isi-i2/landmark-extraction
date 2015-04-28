@@ -2,11 +2,21 @@
 
 import sys
 import json
+import codecs
+
+import zipimport
+importer = zipimport.zipimporter('landmark.mod')
+extraction = importer.load_module('extraction')
+postprocessing = importer.load_module('postprocessing')
 
 from extraction.Landmark import RuleSet
 
 current_id = None
-rules = RuleSet(SITE_RULES)
+
+with codecs.open("lib/rules.zip", "r", "utf-8") as myfile:
+    json_str = myfile.read().encode('utf-8')
+json_object = json.loads(json_str)
+rules = RuleSet(json_object)
 
 # input comes from STDIN
 for line in sys.stdin:
