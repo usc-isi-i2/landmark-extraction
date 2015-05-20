@@ -1,3 +1,18 @@
+/Volumes/Gob/atf/evolution-forums-json/5176043.json
+/Volumes/dipsy/isi/atf/evolution-forums-json/2015-03/532802.json
+
+python prepare-mr-input/prepare-json-input.py /Volumes/dipsy/isi/atf/evolution-forums/2015-03/ /Volumes/dipsy/isi/atf/evolution-forums-json/2015-03/ http://evolution-forum.com viewtopic
+
+
+cd ~/github/Web-Karma/karma-mr
+mvn exec:java -Dexec.mainClass="edu.isi.karma.mapreduce.function.CreateSequenceFile" -Dexec.args="
+--filepath /Volumes/dipsy/isi/atf/evolution-forums-json/2015-03 \
+--outputpath /Volumes/dipsy/isi/atf/evolution-forums-seq/2015-03 \
+--outputfilename a.seq \
+--usekey true" -Dexec.classpathScope=compile
+
+
+
 zip -r landmark.zip extraction postprocessing
 mv landmark.zip landmark.mod
 

@@ -5,6 +5,8 @@ import json
 import codecs
 
 import zipimport
+from matplotlib._image import LANCZOS
+
 importer = zipimport.zipimporter('landmark.mod')
 extraction = importer.load_module('extraction')
 postprocessing = importer.load_module('postprocessing')
@@ -32,7 +34,9 @@ for line in sys.stdin:
                 key = body_json["@id"]
                 #sys.stderr.write("Got html:" + html)
                 extraction_list = rules.extract(html)
-                print key + "\t" + json.dumps(extraction_list)
+                print key + "\t" + json.dumps(extraction.Landmark.flattenResult(extraction_list))
+
+                #print key + "\t" + json.dumps(extraction_list)
         except:
             pass
 
