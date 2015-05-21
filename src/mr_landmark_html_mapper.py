@@ -39,7 +39,7 @@ for line in sys.stdin:
             idx = line.rfind("<location>")
             location = "unknown"
             if idx != -1:
-                location = line[idx+11:]
+                location = line[idx+10:]
                 idx = location.find("</location>")
                 if idx != -1:
                     location = location[0:idx]
