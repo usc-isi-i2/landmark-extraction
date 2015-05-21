@@ -5,10 +5,7 @@ import json
 import codecs
 import traceback
 import zipimport
-<<<<<<< HEAD
-from matplotlib._image import LANCZOS
-=======
->>>>>>> origin/master
+
 
 importer = zipimport.zipimporter('landmark.mod')
 extraction = importer.load_module('extraction')
