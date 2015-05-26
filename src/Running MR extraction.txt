@@ -1,29 +1,34 @@
-/Volumes/Gob/atf/evolution-forums-json/5176043.json
-/Volumes/dipsy/isi/atf/evolution-forums-json/2015-03/532802.json
-
-python prepare-mr-input/prepare-json-input.py /Volumes/dipsy/isi/atf/evolution-forums/2015-03/ /Volumes/dipsy/isi/atf/evolution-forums-json/2015-03/ http://evolution-forum.com viewtopic
-
-
-cd ~/github/Web-Karma/karma-mr
-mvn exec:java -Dexec.mainClass="edu.isi.karma.mapreduce.function.CreateSequenceFile" -Dexec.args="
---filepath /Volumes/dipsy/isi/atf/evolution-forums-json/2015-03 \
---outputpath /Volumes/dipsy/isi/atf/evolution-forums-seq/2015-03 \
---outputfilename a.seq \
---usekey true" -Dexec.classpathScope=compile
-
-
-
 zip -r landmark.zip extraction postprocessing
 mv landmark.zip landmark.mod
 
 nohup time hadoop jar /usr/lib/hadoop-mapreduce/hadoop-streaming.jar \
+    -D mapred.map.tasks=100 \
+    -D mapred.reduce.tasks=500 \
     -libjars /home/ubuntu/landmark-extraction/karma-mr.jar \
-    -file /home/ubuntu/landmark-extraction/src/mr_landmark_mapper.py \
-    -cacheFile hdfs://memex-nn1:8020/user/ubuntu/landmark-extractions/rules/arguntrader_rules.txt#rules.txt \
+    -file /home/ubuntu/landmark-extraction/src/mr_landmark_html_mapper.py \
+    -cacheFile hdfs://memex-nn1:8020/user/ubuntu/landmark-extractions/rules/evolution-forums_rules.txt#rules.txt \
+    -cacheFile hdfs://memex-nn1:8020/user/ubuntu/landmark-extractions/rules/evolution-forums_urls.txt#urls.txt \
     -file /home/ubuntu/landmark-extraction/src/landmark.mod \
-    -mapper /home/ubuntu/landmark-extraction/src/mr_landmark_mapper.py \
+    -mapper /home/ubuntu/landmark-extraction/src/mr_landmark_html_mapper.py \
     -file /home/ubuntu/landmark-extraction/src/mr_landmark_reducer.py \
     -reducer /home/ubuntu/landmark-extraction/src/mr_landmark_reducer.py \
-    -input /user/ubuntu/landmark-extractions/input/arguntrader/* \
-    -output /user/ubuntu/landmark-extractions/output/arguntrader \
-    -inputformat edu.isi.karma.mapreduce.inputformat.SequenceFileAsJSONInputBatchFormat &
+    -input /user/ubuntu/landmark-extractions/input/evolution-forums/* \
+    -output /user/ubuntu/landmark-extractions/output/evolution-forums \
+    -inputformat edu.isi.karma.mapreduce.inputformat.HTMLInputFormat &
+
+
+
+nohup time hadoop jar /usr/lib/hadoop-mapreduce/hadoop-streaming.jar \
+    -D mapred.map.tasks=100 \
+    -D mapred.reduce.tasks=500 \
+    -libjars /home/ubuntu/landmark-extraction/karma-mr.jar \
+    -file /home/ubuntu/landmark-extraction/src/mr_landmark_html_mapper.py \
+    -cacheFile hdfs://memex-nn1:8020/user/ubuntu/landmark-extractions/rules/evolution-forums_rules.txt#rules.txt \
+    -cacheFile hdfs://memex-nn1:8020/user/ubuntu/landmark-extractions/rules/evolution-forums_urls.txt#urls.txt \
+    -file /home/ubuntu/landmark-extraction/src/landmark.mod \
+    -mapper /home/ubuntu/landmark-extraction/src/mr_landmark_html_mapper.py \
+    -file /home/ubuntu/landmark-extraction/src/mr_landmark_reducer.py \
+    -reducer /home/ubuntu/landmark-extraction/src/mr_landmark_reducer.py \
+    -input /user/ubuntu/landmark-extractions/input/evolution-forums-sample/* \
+    -output /user/ubuntu/landmark-extractions/output/evolution-forums-sample \
+    -inputformat edu.isi.karma.mapreduce.inputformat.SequenceFileAsLineInputFormat &
