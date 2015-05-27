@@ -36,7 +36,7 @@ for line in sys.stdin:
             sys.stderr.write("\nGot html:" + line)
             (key, html) = line.split("\t", 1)
             extraction_list = rules.extract(html)
-            
+
             location = urls_json["start"] + key + urls_json["end"]
             flatten = extraction.Landmark.flattenResult(extraction_list)
             flatten['url'] = location
