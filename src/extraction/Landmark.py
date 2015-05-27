@@ -19,6 +19,7 @@ import re, json
 import abc
 import codecs
 import cgi
+from postprocessing.PostProcessor import RemoveExtraSpaces
 from postprocessing.PostProcessor import RemoveHtml
 
 MAX_EXTRACT_LENGTH=100000
@@ -39,46 +40,47 @@ def escape_regex_string(input_string):
                 s[i] = '\\' + c
     return input_string[:0].join(s)
 
-def flattenResult(extraction_object, name = 'root', dont_remove_html = []):
-    from postprocessing.PostProcessor import RemoveExtraSpaces
-    
+def flattenResult(extraction_object, name = 'root'):
     result = {}
     if isinstance(extraction_object, dict):
         if 'sub_rules' in extraction_object:
             for item in extraction_object['sub_rules']:
-                result[item] = flattenResult(extraction_object['sub_rules'][item], item, dont_remove_html)
+                result[item] = flattenResult(extraction_object['sub_rules'][item], item)
         elif 'sequence' in extraction_object:
-            result = flattenResult(extraction_object['sequence'], 'sequence', dont_remove_html)
+            result = flattenResult(extraction_object['sequence'], 'sequence')
         elif 'extract' in extraction_object:
-            processor = RemoveExtraSpaces(extraction_object['extract'])
-            value = processor.post_process()
-            if name not in dont_remove_html:
-                processor = RemoveHtml(value)
-                value = processor.post_process()
-            return value
+            return extraction_object['extract']
         else:
             for extract in extraction_object:
-                result[extract] = flattenResult(extraction_object[extract], extract, dont_remove_html)
+                result[extract] = flattenResult(extraction_object[extract], extract)
     
     if isinstance(extraction_object, list):
         result = []
         for extract in extraction_object:
-            result.append(flattenResult(extract, 'sequence', dont_remove_html))
+            result.append(flattenResult(extract, 'sequence'))
     return result
 
 def loadRule(rule_json_object):
     """ Method to load the rules - when adding a new rule it must be added to the if statement within this method. """
     name = rule_json_object['name']
     rule_type = rule_json_object['rule_type']
+    validation = None
+    removehtml = False
     sub_rules = []
     if 'sub_rules' in rule_json_object:
         sub_rules = rule_json_object['sub_rules']
     
+    if 'validation' in rule_json_object:
+        validation = rule_json_object['validation']
+    
+    if 'removehtml' in rule_json_object:
+        removehtml = rule_json_object['removehtml']
+            
     """ This is where we add our new type """
     if rule_type == ITEM_RULE or rule_type == 'RegexRule':
         begin_regex = rule_json_object['begin_regex']
         end_regex = rule_json_object['end_regex']
-        rule = ItemRule(name, begin_regex, end_regex, sub_rules)
+        rule = ItemRule(name, begin_regex, end_regex, validation, removehtml, sub_rules)
     if rule_type == ITERATION_RULE or rule_type == 'RegexIterationRule':
         begin_regex = rule_json_object['begin_regex']
         end_regex = rule_json_object['end_regex']
@@ -94,7 +96,8 @@ def loadRule(rule_json_object):
         
         rule = IterationRule(name, begin_regex, end_regex, iter_begin_regex,
                                   iter_end_regex, no_first_begin_iter_rule,
-                                  no_last_end_iter_rule, sub_rules)
+                                  no_last_end_iter_rule, validation, removehtml,
+                                  sub_rules)
     return rule
     
 class Rule:
@@ -112,23 +115,33 @@ class Rule:
     @abc.abstractmethod
     def toJson(self):
         """ Method to print the rule as JSON """
+        
+    @abc.abstractmethod
+    def validate(self, value):
+        """ Method to validate this rule """
+    
+    def remove_html(self, value):
+        if self.removehtml:
+            processor = RemoveHtml(value)
+            value = processor.post_process()
+            
+        processor = RemoveExtraSpaces(value)
+        value = processor.post_process()
+        return value
     
     def set_name(self, name):
         self.name = name
-        
-#     def __getitem__(self, key):
-#         return getattr(self, key)
-#     
-#     def __setitem__(self, key, value):
-#         return setattr(self, key, value)
     
     def set_sub_rules(self, sub_rules):
         self.sub_rules = sub_rules
     
-    def __init__(self, name, sub_rules = None):
+    def __init__(self, name, validation = None, removehtml = False, sub_rules = None):
         self.name = name
+        self.validation_regex = None
+        if validation:
+            self.validation_regex = re.compile(validation, re.S)
+        self.removehtml = removehtml 
         self.sub_rules = []
-        
         if sub_rules:
             self.sub_rules = RuleSet(sub_rules)
 
@@ -140,6 +153,7 @@ class ItemRule(Rule):
         if self.sub_rules:
             value['sub_rules'] = self.sub_rules.extract(value['extract'])
         
+        value['extract'] = self.remove_html(value['extract'])
         return value
     
     def extract(self, page_string):
@@ -174,8 +188,22 @@ class ItemRule(Rule):
             json_dict['sub_rules'] = json.loads(self.sub_rules.toJson())
         return json.dumps(json_dict)
     
-    def __init__(self, name, begin_regex, end_regex, sub_rules = None):
-        Rule.__init__(self, name, sub_rules)
+    def validate(self, value):
+        valid = True
+        
+        if self.validation_regex:
+            valid = self.validation_regex.match(value['extract'])
+        if not valid:
+            print 'Validation Failed for ['+self.name+']: ' + value['extract']
+        
+        #TODO: Check the sub rules validation
+        if self.sub_rules:
+            valid = self.sub_rules.validate(value['sub_rules'])
+        
+        return valid
+    
+    def __init__(self, name, begin_regex, end_regex, validation = None, removehtml = False, sub_rules = None):
+        Rule.__init__(self, name, validation, removehtml, sub_rules)
         self.begin_rule = re.compile(begin_regex, re.S)
         self.end_rule = re.compile(end_regex, re.S)
         
@@ -183,8 +211,8 @@ class ItemRule(Rule):
         self.end_regex = end_regex
         
 class IterationRule(ItemRule):
+    
     """ Rule to apply a begin set and single end regex and return all values """
-     
     def apply(self, page_string):
         base_extract = self.extract(page_string)
         start_page_string = base_extract['extract']
@@ -224,7 +252,10 @@ class IterationRule(ItemRule):
                     sub_extraction[sub_extract_name]['begin_index'] += extract['begin_index']
                     sub_extraction[sub_extract_name]['end_index'] += extract['begin_index']
                 extract['sub_rules'] = sub_extraction
-                
+        
+        for extract in extracts:
+            extract['extract'] = self.remove_html(extract['extract'])
+        
         base_extract['sequence'] = extracts
         return base_extract
     
@@ -242,10 +273,24 @@ class IterationRule(ItemRule):
             json_dict['sub_rules'] = json.loads(self.sub_rules.toJson())
         return json.dumps(json_dict)
     
+    def validate(self, value):
+        valid = True
+        for single_value in value['sequence']:
+            if not ItemRule.validate(self, single_value):
+                valid = False
+                break
+            
+            #TODO: Check the sub rules validation
+            if self.sub_rules:
+                valid = self.sub_rules.validate(single_value['sub_rules'])
+        
+        return valid
+    
     def __init__(self, name, begin_regex, end_regex, iter_begin_regex,
                  iter_end_regex, no_first_begin_iter_rule = False,
-                 no_last_end_iter_rule = False, sub_rules = None):
-        ItemRule.__init__(self, name, begin_regex, end_regex, sub_rules)
+                 no_last_end_iter_rule = False, validation = None, removehtml = False,
+                 sub_rules = None):
+        ItemRule.__init__(self, name, begin_regex, end_regex, validation, removehtml, sub_rules)
         self.iter_begin_regex = iter_begin_regex
         self.iter_end_regex = iter_end_regex
         self.iter_begin_rule = re.compile(iter_begin_regex, re.S)
@@ -261,6 +306,12 @@ class RuleSet:
             extraction_object[rule.name] = rule.apply(page_str);
         
         return extraction_object
+    
+    def validate(self, extraction):
+        for rule in self.rules:
+            if not rule.validate(extraction[rule.name]):
+                return False
+        return True
     
     def names(self):
         names = []
@@ -339,10 +390,11 @@ def main(argv=None):
         
         extraction_list = rules.extract(page_str)
         
-        if flatten:
-            print json.dumps(flattenResult(extraction_list), sort_keys=True, indent=2, separators=(',', ': '))
-        else:
-            print json.dumps(extraction_list, sort_keys=True, indent=2, separators=(',', ': '))
+        if rules.validate(extraction_list):
+            if flatten:
+                print json.dumps(flattenResult(extraction_list), sort_keys=True, indent=2, separators=(',', ': '))
+            else:
+                print json.dumps(extraction_list, sort_keys=True, indent=2, separators=(',', ': '))
         
     except Usage, err:
         print >>sys.stderr, err.msg
