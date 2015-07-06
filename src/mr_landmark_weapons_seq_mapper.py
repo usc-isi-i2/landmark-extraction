@@ -5,6 +5,9 @@ import json
 import codecs
 import traceback
 import zipimport
+import hashlib
+import re
+
 
 
 importer = zipimport.zipimporter('landmark.mod')
@@ -15,16 +18,14 @@ from extraction.Landmark import RuleSet
 
 current_id = None
 
-with codecs.open("rules.txt", "r", "utf-8") as myfile:
-    json_str = myfile.read().encode('utf-8')
-#sys.stderr.write("Got rules:" + json_str)
-json_object_rules = json.loads(json_str)
-
-
 
 with codecs.open("urls.txt", 'r', "utf-8") as myfile:
     urls_json_str = myfile.read().encode('utf-8')
 urls_json = json.loads(urls_json_str)
+
+with codecs.open("extractionfiles.json",'r',"utf-8") as rulefile:
+    jExtractionFilesStr = rulefile.read().encode('utf-8')
+jExtractionFiles = json.loads(jExtractionFilesStr)
 
 
 # input comes from STDIN
@@ -49,18 +50,43 @@ for line in sys.stdin:
                     url = url[0]
             except Exception, e:
                 url = ''
-            
 
-            if url.startswith('http://www.armslist.com'):
-                rules = RuleSet(json_object_rules['armslist'])
+            model_uri = ''
+
+
+
+            rules = None
+            for extractionFile in jExtractionFiles:
+                if extractionFile['urls']:
+                    if re.search(extractionFile['urls'],url):
+                        if extractionFile['rules']:
+                            rules = RuleSet(extractionFile['rules'])
+
+                        if extractionFile['model-uri']:
+                            model_uri = extractionFile['model-uri']
+                        break
+
+
+            if rules is not None:
+
                 extraction_list = rules.extract(html)
 
-    #             location = urls_json["start"] + key + urls_json["end"]
                 flatten = extraction.Landmark.flattenResult(extraction_list)
-                flatten['url'] = json_object['_source']['url']
+
+                flatten['url'] = url
                 flatten['timestamp'] = json_object['_source']['timestamp']
                 flatten['team'] = json_object['_source']['team']
                 flatten['crawler'] = json_object['_source']['crawler']
+
+                urlhash = hashlib.sha1(url.encode('utf-8')).hexdigest().upper()
+                uri = "page/" + urlhash + "/" + json_object['_source']['timestamp'] + "/processed"
+
+                flatten['uri'] = uri
+                flatten['tikametadata'] = json_object['_source']['tikametadata']
+                flatten['raw_text'] = json_object['_source']['raw_text']
+                flatten['rawtextdetectedlanguage'] = json_object['_source']['rawtextdetectedlanguage']
+                flatten['model_uri'] = model_uri
+
                 
                 print json_object['_source']['url'] + "\t" + json.dumps(flatten)
         except:
