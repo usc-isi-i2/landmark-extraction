@@ -4,18 +4,21 @@ __author__ = 'amandeep'
 import requests
 import json
 import re
+import argparse
 
 
 
-def queryGithub(repoOwner,repoName,path):
+def queryGithub(repoOwner,repoName,path,branch):
 
     CLIENT_ID = 'ca77866be86f04227660'
     CLIENT_SECRET = '38270a6b4e945c677b7fe076154c117796501a3e'
 
-    githubapiurl = 'https://api.github.com/repos/' + repoOwner+ '/' + repoName + '/contents/' + path + '?ref=development' + '&client_id=' + CLIENT_ID + '&client_secret=' + CLIENT_SECRET
+    githubapiurl = 'https://api.github.com/repos/' + repoOwner+ '/' + repoName + '/contents/' + path + '?ref=' + branch + '&client_id=' + CLIENT_ID + '&client_secret=' + CLIENT_SECRET
+    #githubapiurl = 'https://api.github.com/repos/' + repoOwner+ '/' + repoName + '/contents/' + path  + '?client_id=' + CLIENT_ID + '&client_secret=' + CLIENT_SECRET
+
 
     response = requests.get(githubapiurl)
-    response.content
+    #print response.content
     if response.status_code == requests.codes.ok:
 
         return response.content
@@ -23,7 +26,7 @@ def queryGithub(repoOwner,repoName,path):
     return ''
 
 
-def getExtractionDetails():
+def getExtractionDetails(branch):
     githubrepoowner = 'usc-isi-i2'
     githubreponame = 'dig-alignment'
 
@@ -33,7 +36,7 @@ def getExtractionDetails():
 
     githubpath = 'versions/2.0/datasets/weapons'
 
-    jsonResponse = json.loads(queryGithub(githubrepoowner,githubreponame,githubpath))
+    jsonResponse = json.loads(queryGithub(githubrepoowner,githubreponame,githubpath,branch))
 
     jsonDirPaths = []
 
@@ -78,9 +81,20 @@ def getExtractionDetails():
 
 
 
-f = open('extractionfiles.json','w')
-f.write(json.dumps(getExtractionDetails()))
-f.close()
+
+if __name__ == '__main__':
+
+    argp = argparse.ArgumentParser()
+    argp.add_argument("branch", help="Github repo branch from which to create the extraction rules file")
+    arguments = argp.parse_args()
+
+
+    f = open('extractionfiles.json','w')
+    if arguments.branch:
+        f.write(json.dumps(getExtractionDetails(arguments.branch)))
+    else:
+        f.write(json.dumps(getExtractionDetails('master')))
+    f.close()
 
 
 
