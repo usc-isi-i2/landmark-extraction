@@ -162,7 +162,7 @@ There are two types of rules currently that can be used to extract information f
 * validation [Optional]: A quote escaped regular expression of what the extracted result must pass - if not an error is thrown for the entire RuleSet.
 * removehtml [Optional]: Boolean to remove HTML characters from the extracted result
 
-### RegexIterationRule - Used to extract a list of content from the text
+### IterationRule - Used to extract a list of content from the text
 ```
 {
     "name": "authors",
