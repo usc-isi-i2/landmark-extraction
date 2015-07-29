@@ -144,25 +144,29 @@ python extraction/Landmark.py -f ../sample/jair/jair2.txt ../sample/jair/jair_ru
 ## CREATING RULES
 There are two types of rules currently that can be used to extract information from text. They are highlighted below:
 
-### RegexRule - Used to extract one piece of content from the text
+### ItemRule - Used to extract one piece of content from the text
 ```
 {
     "name": "title",
-    "rule_type": "RegexRule",
+    "rule_type": "ItemRule",
     "begin_regex": "<meta name=\"citation_title\" content=\"",
     "end_regex": "\">"
 }
 ```
 * name: the name of this rule
-* rule_type: RegexRule
+* rule_type: ItemRule
 * begin_regex: The quote escaped regular expression to get to the beginning of where you would like to extract.
 * end_regex: The quote escaped regular expression to get to the end of where you would like to extract (starting from the end of begin_regex).
+* include_end_regex [Optional]: Boolean to "include" the end regex in the extracted result or not
+* strip_end_regex [Optional]: A quote escaped regular expression to strip off the end of the extracted result
+* validation [Optional]: A quote escaped regular expression of what the extracted result must pass - if not an error is thrown for the entire RuleSet.
+* removehtml [Optional]: Boolean to remove HTML characters from the extracted result
 
 ### RegexIterationRule - Used to extract a list of content from the text
 ```
 {
     "name": "authors",
-    "rule_type": "RegexIterationRule",
+    "rule_type": "IterationRule",
     "begin_regex": "<meta",
     "end_regex": "</div>",
     "iter_begin_regex": "citation_author\" content=\"",
@@ -172,10 +176,14 @@ There are two types of rules currently that can be used to extract information f
 }
 ```
 * name: the name of this rule
-* rule_type: RegexRule
+* rule_type: IterationRule
 * begin_regex: The quote escaped regular expression to get to the beginning of where you would like to extract.
 * end_regex: The quote escaped regular expression to get to the end of where you would like to extract (starting from the end of begin_regex).
 * iter_begin_regex: The quote escaped regular expression for the beginning of EACH item to be repeated.
 * iter_end_regex: The quote escaped regular expression for the end EACH item to be repeated (starting from the end of each iter_begin_regex).
 * no_first_begin_iter_rule [Optional]: Boolean which defines if the iter_begin_regex should be used for the FIRST element of the list
 * no_last_end_iter_rule [Optional]: Boolean which defines if the iter_end_regex should be used for the LAST element of the list
+* include_end_regex [Optional]: Boolean to "include" the end regex in the extracted result or not
+* strip_end_regex [Optional]: A quote escaped regular expression to strip off the end of the extracted result
+* validation [Optional]: A quote escaped regular expression of what the extracted result must pass - if not an error is thrown for the entire RuleSet.
+* removehtml [Optional]: Boolean to remove HTML characters from the extracted result
