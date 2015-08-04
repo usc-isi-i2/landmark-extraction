@@ -8,8 +8,6 @@ import zipimport
 import hashlib
 import re
 
-
-
 importer = zipimport.zipimporter('landmark.mod')
 extraction = importer.load_module('extraction')
 postprocessing = importer.load_module('postprocessing')
@@ -18,12 +16,11 @@ from extraction.Landmark import RuleSet
 
 current_id = None
 
-
 with codecs.open("urls.txt", 'r', "utf-8") as myfile:
     urls_json_str = myfile.read().encode('utf-8')
 urls_json = json.loads(urls_json_str)
 
-with codecs.open("extractionfiles.json",'r',"utf-8") as rulefile:
+with codecs.open("extractionfiles.json", 'r', "utf-8") as rulefile:
     jExtractionFilesStr = rulefile.read().encode('utf-8')
 jExtractionFiles = json.loads(jExtractionFilesStr)
 
@@ -32,10 +29,10 @@ jExtractionFiles = json.loads(jExtractionFilesStr)
 for line in sys.stdin:
     # remove leading and trailing whitespace
     line = line.strip()
-    #sys.stderr.write("\nGot line:" + line)
+    # sys.stderr.write("\nGot line:" + line)
     if len(line) > 0:
         try:
-            
+
             (key, json_source) = line.split("\t", 1)
 
             if json_source.strip() != "":
@@ -44,14 +41,7 @@ for line in sys.stdin:
 
                 html = json_object['_source']['raw_content']
 
-
-                url = json_object['_source']['url']
-
-                try:
-                    if isinstance(url,list):
-                        url = url[0]
-                except Exception, e:
-                    url = ''
+                url = key.strip()
 
                 model_uri = ''
 
@@ -60,18 +50,11 @@ for line in sys.stdin:
                 rules = None
                 for extractionFile in jExtractionFiles:
                     if extractionFile['urls']:
-                        if re.search(extractionFile['urls'],url):
+                        if re.search(extractionFile['urls'], url):
                             if extractionFile['rules']:
                                 rules = RuleSet(extractionFile['rules'])
 
-                            if extractionFile['model-uri']:
-                                model_uri = extractionFile['model-uri']
-
-                            if extractionFile['roots']:
-                                 roots = extractionFile['roots']
                             break
-
-
 
                 if rules is not None:
 
@@ -104,13 +87,9 @@ for line in sys.stdin:
                     else:
                         flatten['rawtextdetectedlanguage'] = ''
 
-                    flatten['model_uri'] = model_uri
-                    flatten['roots'] = roots
-
-                    sys.stderr.write("\nURL:" + flatten['url'])
                     sys.stderr.write("\nProcessed JSON:" + json.dumps(flatten))
 
-                    print json_object['_source']['url'] + "\t" + json.dumps(flatten)
+                    print url + "\t" + json.dumps(flatten)
         except:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
