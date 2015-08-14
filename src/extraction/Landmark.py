@@ -217,6 +217,7 @@ class ItemRule(Rule):
             valid = self.validation_regex.match(value['extract'])
         if not valid:
             print 'Validation Failed for ['+self.name+']: ' + value['extract']
+            return valid
         
         #TODO: Check the sub rules validation
         if self.sub_rules:
@@ -246,14 +247,13 @@ class IterationRule(ItemRule):
         sequence_number = 1
         extracts = []
         start_index = 0
+        begin_match_end = -1
         while start_index < len(start_page_string):
             try:
                 if start_index == 0 and self.no_first_begin_iter_rule:
-                    begin_match_start = 0
                     begin_match_end = 0
                 else:
                     begin_match = self.iter_begin_rule.search(start_page_string[start_index:])
-                    begin_match_start = begin_match.start()
                     begin_match_end = begin_match.end()
                 
                 end_match = self.iter_end_rule.search(start_page_string[start_index+begin_match_end:])
@@ -261,9 +261,9 @@ class IterationRule(ItemRule):
                 if 0 < len(value.strip()) < MAX_EXTRACT_LENGTH:
                     extracts.append({'extract':value,'begin_index':start_index+begin_match_end+base_extract['begin_index'],'end_index':start_index+begin_match_end+end_match.start()+base_extract['begin_index'],'sequence_number':sequence_number})
                     sequence_number = sequence_number + 1
-                start_index = start_index+begin_match_start+end_match.start()
+                start_index = start_index+begin_match_end+end_match.start()
             except:
-                if self.no_last_end_iter_rule:
+                if self.no_last_end_iter_rule and begin_match_end >= 0:
                     end_match_start = len(start_page_string)
                     value = start_page_string[start_index+begin_match_end:start_index+begin_match_end+end_match_start]
                     if 0 < len(value.strip()) < MAX_EXTRACT_LENGTH:
@@ -426,7 +426,8 @@ def main(argv=None):
                 print json.dumps(flattenResult(extraction_list), sort_keys=True, indent=2, separators=(',', ': '))
             else:
                 print json.dumps(extraction_list, sort_keys=True, indent=2, separators=(',', ': '))
-        
+        else:
+            extraction_list = None
     except Usage, err:
         print >>sys.stderr, err.msg
         print >>sys.stderr, "for help use --help"
