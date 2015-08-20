@@ -60,7 +60,10 @@ class RemoveHtml(Processor):
         
     def __init__(self, input_string):
         #first remove the <br> and <br/> from the input_strgin
-        cleaned_input = re.sub(r'<br\s*/?>', ' ', input_string, flags=re.IGNORECASE)
+        cleaned_input = re.sub(r'<br\s*/?>', ' ', input_string)
+        cleaned_input = re.sub(r'<BR\s*/?>', ' ', cleaned_input)
+        cleaned_input = re.sub(r'<bR\s*/?>', ' ', cleaned_input)
+        cleaned_input = re.sub(r'<Br\s*/?>', ' ', cleaned_input)
         Processor.__init__(self, cleaned_input)
         startAndEndOfTag = "<[^ \t][^>]*[^ \t]>"
         singleCharacterTag = "<[^ \t>]>"
