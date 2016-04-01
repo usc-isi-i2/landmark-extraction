@@ -1,0 +1,483 @@
+<div class="loading" style="display:none;">Loading&#8230;</div>
+<!-- <form class="container form-horizontal">
+	<font color="red">{{errorMessage}}</font><br>
+	<div class="form-group">
+	  <label for="rules_file" class="col-sm-2 control-label">Project Folder</label>
+	  <div class="col-sm-8">
+	    <select class="form-control" name="repeatSelect" id="rules_file" ng-model="rules_file">
+	      <option ng-repeat="file in project_folders" value={{file}} ng-model="rules_files">{{file}}</option>
+	    </select>
+	  </div>
+	</div>
+	<div class="form-group">
+	  <div class="col-sm-offset-2 col-sm-8">
+		<button type="button" class="btn btn-primary" ng-click="runExtraction()">Extract</button>
+	  </div>
+	</div>
+</form> -->
+
+<div class="alert alert-danger" ng-show="errorMessage">{{errorMessage}}</div>
+
+<div class="container mainpage" ng-show="results">
+	<ul class="nav nav-pills" style="float:right;">
+		<li class="active" data-toggle="pill"><a href="#heirarchy"><i class="glyphicon glyphicon-tasks"></i></a></li>
+		<li><a href="#grid" data-toggle="pill"><i class="glyphicon glyphicon-th"></i></a></li>
+	</ul>
+	<div class="tab-content" style="margin-top: 35px;">
+		<div id="heirarchy" class="tab-pane active row markup">
+			<div class="row">
+			    <ul class="nav nav-tabs" role="tablist">
+			        <li><a href="#" class="add-contact" ng-click="addPage()"><i class="glyphicon glyphicon-plus"></i> Add Page</a>
+			        </li>
+			    </ul>
+			    <div class="tab-content">
+			    </div>
+			</div>
+		</div>
+		<div id="grid" class="tab-pane row markup">
+			<div class="row">
+				<table class="table table-striped">
+				<tr>
+				  <td style="min-width:100px;"><a href="#" class="add-contact" ng-click="addPage()"><i class="glyphicon glyphicon-plus"></i> Add Page</a></td>
+				  <th ng-repeat="file_name in results_filenames">{{file_name}}</th>
+				</tr>
+				<tr ng-repeat="key in results_keys">
+				  <th>{{key}}</th>
+				  <td ng-repeat="file_name in results_filenames">{{results_object[file_name][key]['extract']}}<td>
+				</tr>
+				</table>
+			</div>
+		</div>
+	</div>
+
+	<button id='toggleraw' type="button" class="btn btn-default btn-sm" data-toggle="collapse" style="float:right;" data-target="#raw_results">Show Raw</button>
+	<div id="raw_results" class="collapse">
+		<pre ng-show="results">{{results}}</pre>
+	</div>
+</div>
+
+<div class="row" style="display:none;">
+	<div id="evts" class="demo"></div>
+</div>
+
+<div id="modal-add-page" class="modal fade">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+		    <div class="modal-header">
+		        <a class="close" data-dismiss="modal">×</a>
+		        <h3>Add Page</h3>
+		    </div>
+	        <form id="add_page_url_form" class="form change_name" ng-submit="runSingleExtraction()">
+		    <div class="modal-body">
+		        	<div class="form-group">
+			            <input id="modal-page-url" ng-model="modal_page_url" type="text" class="form-control" autofocus></input>
+			        </div>
+			    <div id="modal-page-url-error" class="error"><div ng-show="modal_page_url_error" class="alert alert-danger">{{modal_page_url_error}}</div></div>
+		    </div>
+
+		    <div class="modal-footer">
+		        <input class="btn btn-success btn-sm" type="submit" value="Add it!">
+		        <a href="#" class="btn" data-dismiss="modal">Cancel</a>
+		    </div>
+	        </form>
+	    </div><!-- /.modal-content -->
+	</div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+
+
+<script src="/static/lib/jstree/jstree.min.js"></script>
+<script>
+
+	$('#raw_results').on('hidden.bs.collapse', function () {
+		$('#toggleraw').html('Show Raw');
+	}).on('shown.bs.collapse', function() {
+		$('#toggleraw').html('Hide Raw');
+	});
+
+	var urls = {};
+	var schema = '';
+	var project_folder = '';
+
+	var page_form_string = '<div class="form-horizontal">##FORM_GROUPS##</div>';
+	var page_form_border_string = '<div class="form-horizontal border">##FORM_GROUPS##</div>';
+	var page_form_group_string = '<div class="form-group" ##LIST_INFO## data-node-id="##NODEID##" data-parent-node-id="##PARENTID##" id="##NAME##_form_group"><div class="col-sm-3"><label id = "##NAME##_label" for="##NAME##" class="control-label">##LABEL##</label>##LIST_ADD_BUTTON##</div><div id="##NAME##_value_div"><div class="col-sm-8"><textarea disabled class="form-control markupinput" id="##NAME##"></textarea></div></div></div>';
+
+	$('#evts')
+		.jstree({
+			'core' : {
+				"animation" : 0,
+				"check_callback" : true,
+				'force_text' : true,
+				"themes" : { "stripes" : true },
+				'multiple' : false,
+				'data' : [
+					{ "text" : "Root", "children" : [
+					]}
+				]
+			},
+			"plugins" : [ "contextmenu", "state", "types", "wholerow" ],
+		    "types" : {
+		      "default" : {
+		        "icon" : "glyphicon glyphicon-stop"
+		      },
+		      "list" : {
+		        "icon" : "glyphicon glyphicon-th-list"
+		      },
+		      "item" : {
+		        "icon" : "glyphicon glyphicon-stop"
+		      }
+		    }
+		});
+
+	function recursivelyFillInForm(formPart, markupPart, path, level){
+		if(markupPart['extract'] == "") {
+			return;
+		}
+
+		var keys = Object.keys(markupPart);
+		var isList = false;
+		for(i = 0; i < keys.length; i++){
+			var key = keys[i];
+			if(key == 'sequence'){
+				isList = true;
+			}
+		}
+
+		if(isList){
+			var fields = $(formPart).children('.form-group');
+			var list = [];
+			list[0] = markupPart['extract'];
+			var sequence = markupPart['sequence'];
+			for(var i = 0; i < sequence.length; i++){
+				list.push(sequence[i]['extract']);
+				// if(sequence[i].sequence_number == 99999){
+				// 	list.push(sequence[i]['extract']);
+				// }
+				// else{
+				// 	list[sequence[i]['sequence_number']] = sequence[i]['extract'];
+				// }
+			}
+			$.each(fields, function(index, child){
+				var field = this;
+				var input = $(field).find('.form-control');
+				$(input).val(list[index]);
+			})
+
+			if(sequence.length > 0) {
+				// var numberOfSubnodes = Object.keys(sequence[0]).length - 2;
+				domSubNodes = $(formPart).children('.form-horizontal.border');
+				$.each(domSubNodes, function(index, child){
+					// var listNumber = (index - (index % numberOfSubnodes))/numberOfSubnodes;
+					var field = $(this).children('.form-group');
+					var listNumber = $(field[0]).attr('data-sequence-num') - 1;
+					var listItem = sequence[listNumber];
+					var label = $(field[0]).find('.control-label').contents().text();
+					var subKeys = Object.keys(listItem);
+
+					// BA: Updated to use sub_rules for return values... TODO maybe change this back??
+					if(subKeys.indexOf('sub_rules') > -1) {
+						sub_rules_keys = Object.keys(listItem['sub_rules']);
+						for(var i = 0; i < sub_rules_keys.length; i++){
+					 		if(sub_rules_keys[i] == label){
+					 			var markupNode = listItem['sub_rules'][sub_rules_keys[i]];
+					 			recursivelyFillInForm(this, jQuery.extend(true, {}, markupNode), path.slice(), level + 1);
+					 		}
+						}
+					}
+					// for(var i = 0; i < subKeys.length; i++){
+					// 	if(subKeys[i] == label){
+					// 		var markupNode = listItem[subKeys[i]];
+					// 		recursivelyFillInForm(this, jQuery.extend(true, {}, markupNode), path.slice(), level + 1);
+					// 	}
+					// }
+					
+				});
+			}
+
+		} else{
+			for(var i = 0; i < keys.length; i++){
+				var key = keys[i];
+				if(key == 'extract'){
+				 	var field = $(formPart).children('.form-group');
+					var input = $(field).find('.form-control')
+					$(input).val(markupPart[key]);
+				}
+
+				domSubNodes = $(formPart).children('.form-horizontal.border');
+				$.each(domSubNodes, function(index, child){
+					var field = $(this).children('.form-group');
+					var label = $(field[0]).find('.control-label').contents().text();
+					if(key == label){
+						recursivelyFillInForm(this, jQuery.extend(true, {}, markupPart[key]), path.slice(), level + 1);
+					}
+				});
+			}
+		}
+
+		// if(level != 1){
+		// 	field = $(formPart).children('.form-group');
+		// 	label = $(field).find('.control-label').contents().text();
+		// 	value = markupPart
+		// 	for(var i = 0; i < path.length; i++){
+		// 		value = value[path[i]]
+		// 	}
+		// 	value = value[label]['extract'];
+		// 	input = $(field).find('.form-control')
+		// 	$(input).val(value);
+		// 	path[path.length] = label;
+		// }	
+
+		// subNodes = $(formPart).children('.form-horizontal.border')
+		// $.each(subNodes, function(index, child){
+		// 	recursivelyFillInForm(this, markup_json, path.slice(), level + 1);
+		// });
+	}
+
+	var uniqueEntryId = 1;
+	var parentNodeMap = {};
+	function buildTabContent(tabId, node, parentFormGroupId, sequence_number, markup) {
+		var tab_content = '';
+		var list_info = '';
+		var list_button = '';
+		var parent_node = $('#evts').jstree(true).get_parent(node);
+		var node_id = '#';
+		if(parent_node != '#') {
+			parent = $('#evts').jstree(true).get_node(parent_node);
+			var node_text = uniqueEntryId++;
+
+			// if(sequence_number) {
+			// 	node_text += '_' + sequence_number;
+			// }
+			// node_id = tabId + '__' + parent_text + '_' + node.text
+			node_id = tabId + '__' + node_text + 'vwv' + sequence_number;
+
+			parentNodeMap[node_id] = parentFormGroupId;
+
+			tab_content = page_form_group_string.split('##NAME##').join(node_id)
+				.replace('##LABEL##',node.text)
+				.replace('##PARENTID##', parent.id)
+				.replace('##NODEID##', node.id);
+			if(node.type == 'list') {
+				if(markup) {
+					if (markup['sequence']) {
+						for(var i = 0; i < markup['sequence'].length; i++) {
+							sub_node = $.extend(true, {}, node );
+							sub_node.type = 'list_item'
+							sub_node.text = node.text + ' ['+(i+1)+']';
+							tab_content += buildTabContent(tabId, sub_node, parentFormGroupId, i+1, markup['sequence'][i]);
+						}
+					}
+				}
+				else {
+					sub_node = $.extend(true, {}, node );
+					sub_node.type = 'list_item'
+					sub_node.text = node.text + ' [1]';
+					tab_content += buildTabContent(tabId, sub_node, parentFormGroupId, 1);
+
+					sub_node = $.extend(true, {}, node );
+					sub_node.type = 'list_item'
+					sub_node.text = node.text + ' [2]';
+					tab_content += buildTabContent(tabId, sub_node, parentFormGroupId, 2);
+
+					sub_node = $.extend(true, {}, node );
+					sub_node.type = 'list_item'
+					sub_node.text = node.text + ' [3]';
+					tab_content += buildTabContent(tabId, sub_node, parentFormGroupId, 3);
+
+					sub_node = $.extend(true, {}, node );
+					sub_node.type = 'list_item'
+					sub_node.text = node.text + ' [last]';
+					tab_content += buildTabContent(tabId, sub_node, parentFormGroupId, 99999);
+				}
+
+				// list_info = '';
+				// list_button = '<a id="'+node_id+'_add_list_item" class="markup_button"><i class="add_list_item glyphicon glyphicon-plus-sign"></i></a>';
+			}
+			// else if(node.type == 'list_item') {
+			// 	list_button = '<a id="'+node_id+'_delete_list_item" class="markup_button"><i class="delete_list_item glyphicon glyphicon-remove"></i></a>';
+			// }
+
+			if(sequence_number) {
+				list_info = ' data-sequence-num=' + sequence_number;
+			}
+
+			// if(parent.type == 'list_item' && sequence_number) {
+			// 	list_info = ' data-parent-node-is-list=true data-sequence-num=' + sequence_number;
+			// }
+		}
+		tab_content = tab_content.replace('##LIST_INFO##', list_info).replace('##LIST_ADD_BUTTON##', list_button);
+
+		if(node.children && node.type != 'list') {
+			$.each( node.children, function( index, child ) {
+				// before_node_id = node_id;
+				var sub_markup = null;
+				if(markup && child.text in markup) {
+					sub_markup = markup[child.text];
+				}
+				tab_content += page_form_border_string.replace('##FORM_GROUPS##', buildTabContent(tabId, child, node_id, sequence_number, sub_markup));
+				// node_id = before_node_id;
+			});
+		}
+
+		// tab_content = page_form_border_string.replace('##FORM_GROUPS##', tab_content);
+		return tab_content;
+	}
+
+	function clear() {
+		$('.tab-content').html();
+		$.each( $(".nav-tabs a"), function( index, child ) {
+			if(!$(this).hasClass('add-contact')) {
+				$(this).remove();
+			}
+		});
+	}
+
+	function loadSinglePage(new_page_url, markup_json) {
+		page_name = Object.keys(markup_json)[0];
+		// urls[page_name] = new_page_url;
+
+	    var id = $(".nav-tabs").children().length; //think about it ;)
+	    var tabId = 'contact_' + id;
+	    $(".add-contact").closest('li').before('<li><a id="#contact_' + id + '" href="#contact_' + id + '">' + page_name + '</a> <span> <i class="glyphicon glyphicon-remove-circle"></i> </span></li>');
+
+    	var tree_json = $("#evts").jstree(true).get_json('#');
+    	
+    	var tab_content = buildTabContent(tabId, tree_json[0], null, null, markup_json[page_name]);
+
+	    $('.tab-content').append('<div class="tab-pane" id="' + tabId + '"><div class="html_link"><a href="'+new_page_url+'" target="_blank">'+new_page_url+' <i class="glyphicon glyphicon-new-window"></i></a></div><div id="'+tabId+'_cached_link" class="html_link">Cached: <a href="/static/project_folders/'+project_folder+'/'+page_name+'" target="_blank">/static/project_folders/'+project_folder+'/'+page_name+' <i class="glyphicon glyphicon-new-window"></i></a></div><div class="markup_content">' + page_form_string.replace('##FORM_GROUPS##', tab_content) + '</div>');
+	    $('.nav-tabs li:nth-child(' + id + ') a').click();
+
+		form = $('#' + tabId).children().children();
+		recursivelyFillInForm(form, markup_json[page_name], [page_name], 1);
+
+		$('#modal-add-page').modal('hide');
+		$('.loading').hide();
+	}
+
+	function loadMarkup(markup_json) {
+		//remove previous ones!
+		$.each( $(".nav-tabs a"), function( index, child ) {
+	    	if(!$(this).hasClass('add-contact')) {
+		        var anchor = $(this);
+
+		        delete urls[anchor.text()];
+
+		        $(anchor.attr('href')).remove();
+		        $(this).parent().remove();
+	    	}
+		});
+
+		$('#evts').jstree(true).settings.core.data = markup_json['__SCHEMA__'];
+	    $('#evts').jstree(true).refresh();
+
+		delete markup_json['__SCHEMA__'];
+	    urls = markup_json['__URLS__'];
+	    delete markup_json['__URLS__'];
+
+	    setTimeout(function() {
+		    for(item in markup_json) {
+		    	page_name = item;
+		    	new_page_url = urls[item];
+
+		    	// $('.add-contact').click();
+    		    id = $(".nav-tabs").children().length - 1; //think about it ;)
+			    var tabId = 'contact_' + id;
+			    $('#\\' + '#contact_' + id).html(item);
+
+				$(".add-contact").closest('li').before('<li><a id="#contact_' + id + '" href="#contact_' + id + '">' + page_name + '</a></li>');
+
+		    	var tree_json = $("#evts").jstree(true).get_json('#');
+
+		    	var tab_content = buildTabContent(tabId, tree_json[0], null, null, markup_json[item]);
+
+			    $('.tab-content').append('<div class="tab-pane" id="' + tabId + '"><div class="html_link"><a href="'+new_page_url+'" target="_blank">'+new_page_url+' <i class="glyphicon glyphicon-new-window"></i></a></div><div id="'+tabId+'_cached_link" class="html_link">Cached: <a href="/static/project_folders/'+project_folder+'/'+page_name+'" target="_blank">/static/project_folders/'+project_folder+'/'+page_name+' <i class="glyphicon glyphicon-new-window"></i></a></div><div class="markup_content">' + page_form_string.replace('##FORM_GROUPS##', tab_content) + '</div>');
+		    }
+
+		    one_clicked = false;
+		    total=$(".nav-tabs a").length-1;
+
+			$.each( $(".nav-tabs a"), function( index, child ) {
+			    	if(!$(this).hasClass('add-contact')) {
+				    	page_id = $(this).text();
+			    		form = $('#' + $(this).context.id.slice(1)).children().children();
+						recursivelyFillInForm(form, markup_json[page_id], [page_id], 1);
+
+						// nodes = form.children('.form-horizontal.border')
+						// $.each(nodes, function(index, child){
+						// 	recursivelyFillInForm(this, markup_json, [page_id], 2);
+						// });
+						// fields = form.find('.form-group');
+						// console.log(fields);
+						// $.each( fields, function( index, child ) {
+						// 	label = $(this).find('.control-label').contents().text();
+						// 	value = markup_json[page_id][label]['extract'];
+						// 	field = $(this).find('.form-control')
+						// 	$(field).val(value);
+						// });
+						
+						if(!one_clicked) {
+							$('#\\'+ $(this).context.id).click();
+							one_clicked = true;
+						}
+						total--;
+						if(total <=0) {
+							$('.loading').hide();
+						}
+			    	}
+			});
+	    }, 500);
+	}
+
+	function add_page_url() {
+		$('#modal-page-url-error').html('');
+		new_page_url = $('#modal-page-url').val();
+
+		$.post( "/test_extraction", JSON.stringify({'url': new_page_url, "project_folder": project_folder}), function( data ) {
+
+			markup_json = JSON.parse(data);
+			page_name = Object.keys(markup_json)[0];
+			urls[page_name] = new_page_url;
+
+		    var id = $(".nav-tabs").children().length; //think about it ;)
+		    var tabId = 'contact_' + id;
+		    $(".add-contact").closest('li').before('<li><a id="#contact_' + id + '" href="#contact_' + id + '">' + page_name + '</a> <span> <i class="glyphicon glyphicon-remove-circle"></i> </span></li>');
+
+	    	var tree_json = $("#evts").jstree(true).get_json('#');
+	    	
+	    	var tab_content = buildTabContent(tabId, tree_json[0], null, null, markup_json[page_name]);
+
+		    $('.tab-content').append('<div class="tab-pane" id="' + tabId + '"><div class="html_link"><a href="'+new_page_url+'" target="_blank">'+new_page_url+' <i class="glyphicon glyphicon-new-window"></i></a></div><div id="'+tabId+'_cached_link" class="html_link">Cached: <a href="/static/project_folders/'+project_folder+'/'+page_name+'" target="_blank">/static/project_folders/'+project_folder+'/'+page_name+' <i class="glyphicon glyphicon-new-window"></i></a></div><div class="markup_content">' + page_form_string.replace('##FORM_GROUPS##', tab_content) + '</div>');
+		    $('.nav-tabs li:nth-child(' + id + ') a').click();
+
+    		form = $('#' + tabId).children().children();
+			recursivelyFillInForm(form, markup_json[page_name], [page_name], 1);
+
+			$('#modal-add-page').modal('hide');
+		}).fail(function(data) {
+			$('#modal-page-url-error').html('Problem with URL!</div>');
+		});
+	}
+
+	$(".nav-pills").on("click", "a", function (e) {
+	        e.preventDefault();
+            $(this).tab('show');
+	    });
+
+	$(".nav-tabs").on("click", "a", function (e) {
+	        e.preventDefault();
+	        if (!$(this).hasClass('add-contact')) {
+	            $(this).tab('show');
+	        }
+	    })
+	    .on("click", "span", function () {
+	    	//This is to delete a page
+	        var anchor = $(this).siblings('a');
+
+	        delete urls[anchor.text()];
+
+	        $(anchor.attr('href')).remove();
+	        $(this).parent().remove();
+
+	        // $(".nav-tabs li").children('a').first().click();
+	    });
+</script>

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" ng-app="AngularFlask">
+<head>
+	<meta charset="utf-8">
+	<title>InferLink {Landmark}</title>
+	<link rel="shortcut icon" type="image/x-icon" href="http://www.inferlink.com/favicon.ico"/>
+
+	<link rel="stylesheet" href="/static/css/bootstrap.css">
+	<link rel="stylesheet" href="/static/css/main.css">
+	<link rel="stylesheet" href="/static/css/themes/default/style.min.css">
+
+	<script src="/static/lib/jquery/jquery.min.js"></script>
+	<script src="/static/lib/bootstrap/bootstrap.min.js"></script>
+
+	<script src="/static/lib/angular/angular.js"></script>
+	<script src="/static/lib/angular/angular-resource.js"></script>
+	<script src="/static/lib/angular/angular-route.js"></script>
+
+	<script src="/static/js/app.js"></script>
+	<script src="/static/js/controllers.js"></script>
+ 	<script src="/static/js/services.js"></script>
+</head>
+<body>
+	<div ng-include="'static/partials/header.html'"></div>
+
+	<div class="container page">
+		<div id="content" class="container main" ng-view>
+		</div>
+
+		<hr>
+		<footer id="footer" class="footer">
+			<div class="footer-right">
+				<span>&copy; 2016 InferLink</span>
+			</div>
+		</footer>
+	</div>
+</body>
+</html>

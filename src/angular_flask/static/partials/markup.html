@@ -1,0 +1,1072 @@
+	<script src="/static/lib/jstree/jstree.min.js"></script>
+	
+	<script>
+	var markup_json = {};
+
+	var clicked_page_id = '';
+	var urls = {};
+	var project_folder = '';
+
+	var page_form_string = '<div class="form-horizontal">##FORM_GROUPS##</div>';
+	var page_form_border_string = '<div class="form-horizontal border">##FORM_GROUPS##</div>';
+	var page_form_group_string = '<div class="form-group" ##LIST_INFO## data-node-id="##NODEID##" data-parent-node-id="##PARENTID##" id="##NAME##_form_group"><div class="col-sm-3"><label id = "##NAME##_label" for="##NAME##" class="control-label">##LABEL##</label>##LIST_ADD_BUTTON##<i id="##NAME##_error" class="compress glyphicon glyphicon-minus-sign" style="color:red; float:right; display:none;"></i></div><div id="##NAME##_value_div"><div class="col-sm-8"><input type="text" class="form-control markupinput" id="##NAME##" placeholder="Paste value here"></div><div class="col-sm-1"></i><a id="##NAME##_compress" class="compress_button markup_button"><i class="compress glyphicon glyphicon-compressed"></i></a></div></div></div>';
+	var single_value_string = '<div class="col-sm-8"><input type="text" class="form-control markupinput" id="##NAME##" placeholder="Paste value here"></div><div class="col-sm-1"><a id="##NAME##_compress" class="compress_button markup_button"><i class="compress glyphicon glyphicon-compressed"></i></a></div>';
+	var start_end_value_string = '<div class="col-sm-4"><input type="text" class="form-control markupinput" id="##NAME##_start" placeholder="Paste start here"></div><div class="col-sm-4"><input type="text" class="form-control markupinput" id="##NAME##_end" placeholder="Paste end here"></div><div class="col-sm-1"><a id="##NAME##_compress" class="compress_button markup_button"><i class="compress glyphicon glyphicon-compressed"></i></a></div>';
+
+	/**** Schema Generation Stuff ****/
+	function demo_create_item() {
+		var ref = $('#evts').jstree(true),
+			sel = ref.get_selected();
+		if(!sel.length) { return false; }
+		sel = sel[0];
+		sel = ref.create_node(sel, {"type":"item"});
+		if(sel) {
+			ref.edit(sel);
+		}
+	};
+	function demo_create_list() {
+		var ref = $('#evts').jstree(true),
+			sel = ref.get_selected();
+		if(!sel.length) { return false; }
+		sel = sel[0];
+		sel = ref.create_node(sel, {"type":"list"});
+		if(sel) {
+			ref.edit(sel);
+		}
+	};
+	function demo_rename() {
+		var ref = $('#evts').jstree(true),
+			sel = ref.get_selected();
+		if(!sel.length) { return false; }
+		sel = sel[0];
+		if(sel == 'j1_1') { return false; }
+		ref.edit(sel);
+	};
+	function demo_delete() {
+		var ref = $('#evts').jstree(true),
+			sel = ref.get_selected();
+		if(!sel.length) { return false; }
+		if(sel[0] == 'j1_1') {
+			children = ref.get_selected(true)[0].children;
+			if (confirm('Are you sure you want to clear the schema?')) {
+				ref.delete_node(children);
+			}
+			return false;
+		}
+		ref.delete_node(sel);
+	};
+
+	$('#add_page_url_form').submit( function(e) {
+		e.preventDefault();
+		add_page_url();
+	});
+
+	function add_page_url() {
+		$('.loading').show();
+		$('#modal-page-url-error').html('');
+		new_page_url = $('#modal-page-url').val();
+
+		$.post( "/add_markup_url", JSON.stringify({'url': new_page_url, "project_folder": project_folder}), function( data ) {
+
+			page_name = data.file_name;
+
+			urls[page_name] = new_page_url;
+
+		    var id = $(".nav-tabs").children().length; //think about it ;)
+		    var tabId = 'contact_' + id;
+		    $(".add-contact").closest('li').before('<li><a id="#contact_' + id + '" href="#contact_' + id + '">' + page_name + '</a> <span> <i class="glyphicon glyphicon-remove-circle"></i> </span></li>');
+
+	    	var tree_json = $("#evts").jstree(true).get_json('#');
+	    	
+	    	var tab_content = buildTabContent(tabId, tree_json[0], null, null);
+
+		    $('.tab-content').append('<div class="tab-pane" id="' + tabId + '"><div class="html_link"><a href="'+new_page_url+'" target="_blank">'+new_page_url+' <i class="glyphicon glyphicon-new-window"></i></a></div><div id="'+tabId+'_cached_link" class="html_link">Cached: <a href="/static/project_folders/'+project_folder+'/'+page_name+'" target="_blank">/static/project_folders/'+project_folder+'/'+page_name+' <i class="glyphicon glyphicon-new-window"></i></a></div><div class="markup_content">' + page_form_string.replace('##FORM_GROUPS##', tab_content) + '</div>');
+		    $('.nav-tabs li:nth-child(' + id + ') a').click();
+
+			$('#modal-add-page').modal('hide');
+			$('.loading').hide();
+		}).fail(function(data) {
+			$('#modal-page-url-error').html('<div class="alert alert-danger">Problem with URL!</div>');
+			$('.loading').hide();
+		});
+	}
+
+	// $('#start_form').submit( function(e) {
+	// 	e.preventDefault();
+	// 	$('.loading').show();
+		
+	// 	project_folder = $('#modal-project-name').val();
+	// 	if(!project_folder) {
+	// 		$('#modal-project-name-error').html('<div class="alert alert-danger">Enter an existing or new Project Folder!</div>');
+	// 		$('.loading').hide();
+	// 	}
+	// 	else {
+	// 		load(project_folder);
+	// 	}
+	// });
+
+	function load(project_folder) {
+		$('.loading').show();
+		//remove previous ones!
+		$.each( $(".nav-tabs a"), function( index, child ) {
+	    	if(!$(this).hasClass('add-contact')) {
+		        var anchor = $(this);
+
+		        delete urls[anchor.text()];
+
+		        $(anchor.attr('href')).remove();
+		        $(this).parent().remove();
+	    	}
+		});
+
+		$.post( "/project_folder", JSON.stringify({'project_folder': project_folder}), function( data ) {
+			$('#project_folder').html('[' + project_folder + ']');
+			loadMarkup(data.markup);
+			loadRules(data.rules);
+
+			$('#modal-content-start-select').modal('hide');
+		}).fail(function(data) {
+			$('#modal-project-name-error').html('<div class="alert alert-danger">There was an error! Reload and try again later.</div>');
+			$('.loading').hide();
+		});
+	}
+
+	function change_page_name() {
+		old_file_name = $('#\\'+clicked_page_id).html();
+		new_file_name = $('#modal-name').val();
+		$.post( "/change_page_name", JSON.stringify({'project_folder': project_folder, 'old_file_name':old_file_name, 'new_file_name':new_file_name}), function( data ) {
+			$('#\\'+clicked_page_id).html(new_file_name);
+			
+			urls[new_file_name] = new_page_url;
+			delete urls[old_file_name];
+			$(clicked_page_id+'_cached_link').html('Cached: <a href="/static/project_folders/'+project_folder+'/'+new_file_name+'" target="_blank">/static/project_folders/'+project_folder+'/'+new_file_name+' <i class="glyphicon glyphicon-new-window"></i></a>');
+
+			$('#modal-content-change-name').modal('hide');
+		}).fail(function(data) {
+			$('#modal-change-name-error').html('<div class="alert alert-danger">There was an error changing file names.</div>');
+		});
+	}
+
+	function add_sequence_number(){
+		num = Number($('#modal-sequence-num').val());
+		if(num > 0) {
+			//for now just put it at the end
+			list_ref = $('#'+clicked_sequence_id+'_form_group');
+			node_id = $(list_ref).attr('data-node-id');
+			node = $('#evts').jstree(true).get_node(node_id);
+			sub_node = $.extend(true, {}, node );
+			sub_node.type = 'list_item'
+			sub_node.text = node.text + ' ['+num+']';
+			tabId = clicked_sequence_id.substring(0, clicked_sequence_id.indexOf('__'));
+
+			parent_id = parentNodeMap[clicked_sequence_id];
+
+			added = false;
+			fields = list_ref.parent().find('.form-group');
+			if(fields.length > 2) {
+				$.each( fields, function( index, child ) {
+					child_num = Number($(child).attr('data-sequence-num'));
+					if(child_num == num) {
+						added = true;
+					}
+
+					if(num < child_num && !added) {
+						added = true;
+						$(child).before(buildTabContent(tabId, sub_node, parent_id, num));
+					}
+				});
+			}
+			else if(fields.length == 2) {
+				child_num = Number($(fields).last().attr('data-sequence-num'));
+				if (child_num < num) {
+					$(fields).last().after(buildTabContent(tabId, sub_node, parent_id, num));
+				}
+				else if (child_num > num) {
+					$(fields).last().before(buildTabContent(tabId, sub_node, parent_id, num));
+				}
+				added = true;
+			}
+
+			if(!added) {
+				$(list_ref).parent().append(buildTabContent(tabId, sub_node, parent_id, num));
+			}
+			$('#modal-content-sequence-num').modal('hide');
+		}
+	}
+
+	function recursivelyFillInForm(formPart, markupPart, path, level){
+		if(markupPart['extract'] == "") {
+			return;
+		}
+
+		var keys = Object.keys(markupPart);
+		var isList = false;
+		for(i = 0; i < keys.length; i++){
+			var key = keys[i];
+			if(key == 'sequence'){
+				isList = true;
+			}
+		}
+
+		if(isList){
+			var fields = $(formPart).children('.form-group');
+			var list = [];
+			list[0] = markupPart['extract'];
+			var sequence = markupPart['sequence'];
+			for(var i = 0; i < sequence.length; i++){
+				list.push(sequence[i]['extract']);
+				// if(sequence[i].sequence_number == 99999){
+				// 	list.push(sequence[i]['extract']);
+				// }
+				// else{
+				// 	list[sequence[i]['sequence_number']] = sequence[i]['extract'];
+				// }
+			}
+			$.each(fields, function(index, child){
+				var field = this;
+				var input = $(field).find('.form-control');
+				$(input).val(list[index]);
+			})
+
+			if(sequence.length > 0) {
+				// var numberOfSubnodes = Object.keys(sequence[0]).length - 2;
+				domSubNodes = $(formPart).children('.form-horizontal.border');
+				$.each(domSubNodes, function(index, child){
+					// var listNumber = (index - (index % numberOfSubnodes))/numberOfSubnodes;
+					var field = $(this).children('.form-group');
+					var listNumber = $(field[0]).attr('data-sequence-num') - 1;
+					var listItem = sequence[listNumber];
+					var label = $(field[0]).find('.control-label').contents().text();
+					var subKeys = Object.keys(listItem);
+
+					// BA: Updated to use sub_rules for return values... TODO maybe change this back??
+					if(subKeys.indexOf('sub_rules') > -1) {
+						sub_rules_keys = Object.keys(listItem['sub_rules']);
+						for(var i = 0; i < sub_rules_keys.length; i++){
+					 		if(sub_rules_keys[i] == label){
+					 			var markupNode = listItem['sub_rules'][sub_rules_keys[i]];
+					 			recursivelyFillInForm(this, jQuery.extend(true, {}, markupNode), path.slice(), level + 1);
+					 		}
+						}
+					}
+					else {
+						for(var i = 0; i < subKeys.length; i++){
+							if(subKeys[i] == label){
+								var markupNode = listItem[subKeys[i]];
+								recursivelyFillInForm(this, jQuery.extend(true, {}, markupNode), path.slice(), level + 1);
+							}
+						}
+					}
+					
+				});
+			}
+
+		} else{
+			for(var i = 0; i < keys.length; i++){
+				var key = keys[i];
+				if(key == 'extract'){
+				 	var field = $(formPart).children('.form-group');
+					var input = $(field).find('.form-control')
+					$(input).val(markupPart[key]);
+				}
+
+				domSubNodes = $(formPart).children('.form-horizontal.border');
+				$.each(domSubNodes, function(index, child){
+					var field = $(this).children('.form-group');
+					var label = $(field[0]).find('.control-label').contents().text();
+					if(key == label){
+						recursivelyFillInForm(this, jQuery.extend(true, {}, markupPart[key]), path.slice(), level + 1);
+					}
+				});
+			}
+		}
+
+		// if(level != 1){
+		// 	field = $(formPart).children('.form-group');
+		// 	label = $(field).find('.control-label').contents().text();
+		// 	value = markupPart
+		// 	for(var i = 0; i < path.length; i++){
+		// 		value = value[path[i]]
+		// 	}
+		// 	value = value[label]['extract'];
+		// 	input = $(field).find('.form-control')
+		// 	$(input).val(value);
+		// 	path[path.length] = label;
+		// }	
+
+		// subNodes = $(formPart).children('.form-horizontal.border')
+		// $.each(subNodes, function(index, child){
+		// 	recursivelyFillInForm(this, markup_json, path.slice(), level + 1);
+		// });
+	}
+
+	$('#evts')
+		.jstree({
+			'core' : {
+				"animation" : 0,
+				"check_callback" : true,
+				'force_text' : true,
+				"themes" : { "stripes" : true },
+				'multiple' : false,
+				'data' : [
+					{ "text" : "Root", "children" : [
+					]}
+				]
+			},
+			"plugins" : [ "contextmenu", "state", "types", "wholerow" ],
+			"contextmenu" : {
+		        "items": function (node) {
+		            return {
+		                "Create": {
+		                    "label": "Create",
+		                    "separator_after": true,
+		                    "action": false,
+		                    "icon": "glyphicon glyphicon-asterisk",
+		                    "submenu" : {
+		                    	"Create Item" : {
+		                    		"label": "Create an Item",
+		                    		"icon" : "glyphicon glyphicon-stop",
+		                    		"action": demo_create_item
+		                    	},
+		                    	"Create List" : {
+		                    		"label": "Create a List",
+		                    		"icon" : "glyphicon glyphicon-th-list",
+		                    		"action": demo_create_list
+		                    	},
+		                    }
+		                },
+		                "Rename": {
+		                    "label": "Rename this Item",
+		                    "icon": "glyphicon glyphicon-pencil",
+		                    "action": demo_rename
+		                },
+		                "Delete": {
+		                    "label": "Delete this Item",
+		                    "icon": "glyphicon glyphicon-remove",
+		                    "action": demo_delete
+		                }
+		            };
+		        }
+		    },
+		    "types" : {
+		      "default" : {
+		        "icon" : "glyphicon glyphicon-stop"
+		      },
+		      "list" : {
+		        "icon" : "glyphicon glyphicon-th-list"
+		      },
+		      "item" : {
+		        "icon" : "glyphicon glyphicon-stop"
+		      }
+		    }
+		})
+		.bind("dblclick.jstree", function (e,data) {
+    		var node = $(e.target).closest("li");
+    		demo_rename();
+    	})
+    	.on('create_node.jstree', function (e, data) {
+			$.each( $(".nav-tabs a"), function( index, child ) {
+				if(!$(this).hasClass('add-contact')) {
+					var tabId = $(this).context.id.slice(1);
+					form = $('#' + tabId);
+
+					// Add to the root node
+					if(data.parent == 'j1_1') {
+						form.find('.form-horizontal').not('.border').append(page_form_border_string.replace('##FORM_GROUPS##', buildTabContent(tabId, data.node, '#', null)));
+					}
+					else {
+						fields = form.find('.form-group');
+						$.each( fields, function( index, child ) {
+							id = $(child).attr('data-node-id');
+							if(id == data.parent) {
+								parent_node = $('#evts').jstree(true).get_node(data.parent);
+								sequence_number = $(child).attr('data-sequence-num');
+								parent_id = $(child).context.id.replace('_form_group', '');
+								if(parent_node.type == 'list') {
+									if(sequence_number) {
+										$(child).after(page_form_border_string.replace('##FORM_GROUPS##', buildTabContent(tabId, data.node, parent_id, sequence_number)));
+									}
+								}
+								else {
+									$(child).parent().append(page_form_border_string.replace('##FORM_GROUPS##', buildTabContent(tabId, data.node, parent_id, sequence_number)));
+								}
+							}
+						});
+					}
+				}
+			});
+  		})
+    	.on('rename_node.jstree', function (e, data) {
+    		if(data.text != data.old) {
+    			$.each( $(".nav-tabs a"), function( index, child ) {
+    				if(!$(this).hasClass('add-contact')) {
+						form = $('#' + $(this).context.id.slice(1));
+
+						fields = form.find('.form-group');
+						$.each( fields, function( index, child ) {
+							id = $(child).attr('data-node-id');
+
+							if(id == data.node.id) {
+								label = $(child).find('label');
+								old = label.text();
+								label.text(old.replace(data.old,data.text));
+							}
+
+							// if(parent == data.old) {
+							// 	parent = parent.replace(data.old, data.text);
+							// }
+						});
+					}
+    			});
+    		}
+  		})
+    	.on('delete_node.jstree', function (e, data) {
+			$.each( $(".nav-tabs a"), function( index, child ) {
+				form = $('#' + $(this).context.id.slice(1));
+				fields = form.find('.form-group');
+				$.each( fields, function( index, child ) {
+					id = $(child).attr('data-node-id');
+					if(id == data.node.id) {
+						$(child).parent().remove();
+					}
+				});
+			});
+  		});
+
+	/**** Markup Stuff ****/
+	$(".nav-tabs").on("click", "a", function (e) {
+	        e.preventDefault();
+	        if (!$(this).hasClass('add-contact')) {
+	            $(this).tab('show');
+	        }
+	    })
+	    .on("dblclick", "a", function (e) {
+			e.preventDefault();
+	        if (!$(this).hasClass('add-contact')) {
+	            //$(this).tab('show');
+	            clicked_page_id = $(this).context.id;
+	            $('#modal-name').val('');
+	            $('#modal-change-name-error').html('');
+	            $('#modal-content-change-name').modal('show');
+	        }
+	    })
+	    .on("click", "span", function () {
+	    	//This is to delete a page
+	        var anchor = $(this).siblings('a');
+
+	        //TODO: Tell the server to delete this file
+	        delete urls[anchor.text()];
+
+	        $(anchor.attr('href')).remove();
+	        $(this).parent().remove();
+
+	        // $(".nav-tabs li").children('a').first().click();
+	    });
+
+	$('#modal-content-change-name').on('shown.bs.modal', function() {
+	  $(this).find('[autofocus]').focus();
+	});
+
+	$('#modal-add-page').on('shown.bs.modal', function() {
+	  $(this).find('[autofocus]').focus();
+	});
+
+	$("#change_name").submit(function( event ) {
+	  event.preventDefault();
+	  change_page_name();
+	});
+
+	$('.add-contact').click(function (e) {
+	    e.preventDefault();
+
+	    $('#modal-page-url-error').html('');
+        $('#modal-page-url').val('');
+        $('#modal-add-page').modal('show');
+	});
+
+	$('.markupinput').live('blur', function(e) {
+		e.preventDefault();
+
+		file_name = $('.nav-tabs .active a').text();
+		markup = $('#'+e.currentTarget.id).val();
+		if(e.currentTarget.id.indexOf('_start', e.currentTarget.id.length - '_start'.length) !== -1) {
+			markup = $('#'+e.currentTarget.id).val() + '##DONTCARE##' + $('#'+e.currentTarget.id.replace('_start','_end')).val();
+		}
+		else if(e.currentTarget.id.indexOf('_end', e.currentTarget.id.length - '_end'.length) !== -1) {
+			markup = $('#'+e.currentTarget.id.replace('_end','_start')).val() + '##DONTCARE##' + $('#'+e.currentTarget.id).val();
+		}
+
+		if(markup == '' || markup == '##DONTCARE##') {
+			$('#'+e.currentTarget.id+"_error").hide();
+		}
+		else {
+			$.post( "/markup_on_page", JSON.stringify({'file_name': file_name, 'markup': markup, 'project_folder': project_folder}), function( data ) {
+				error = '#'+e.currentTarget.id.replace('_start','').replace('_end','')+"_error";
+				if(data.shortest_pairs.length == 0) {
+					$(error).show();
+				}
+				else {
+					$(error).hide();
+				}
+			}).fail(function(data) {
+				$('#'+e.currentTarget.id+"_error").show();
+			});
+		}
+	});
+
+	$('.tab-content').on("click", ".markup_button", function (e) {
+		e.preventDefault();
+		if($(this).context.id.match("_compress$") == "_compress") {
+			id = $(this).context.id.replace('_compress', '');
+			value_div = $('#' + id.replace( /(:|\.|\[|\]|,)/g, "\\$1" ).replace(/ /g, "\\ ") + '_value_div');
+			if (value_div[0].children.length > 2) {
+				value_div.html(single_value_string.split('##NAME##').join(id));
+			}
+			else {
+				value_div.html(start_end_value_string.split('##NAME##').join(id));
+			}
+		}
+		else if($(this).context.id.match("_add_list_item$") == "_add_list_item") {
+			clicked_sequence_id = $(this).context.id.replace('_add_list_item', '');
+            $('#modal-sequence-num').val('');
+            $('#modal-content-sequence-num').modal('show');
+		}
+		else if($(this).context.id.match("_delete_list_item$") == "_delete_list_item") {
+			id = $(this).context.id.replace('_delete_list_item', '');
+			tabId = id.substring(0, id.indexOf('__'));
+
+			node_id = $('#'+id+'_form_group').attr('data-node-id');
+			sequence_number = $('#'+id+'_form_group').attr('data-sequence-num');
+			parent_node = $('#evts').jstree(true).get_node(node_id);
+
+			for(child_index in parent_node.children) {
+				child = parent_node.children[child_index];
+				child_candidates = $(".form-group[data-node-id='" + child + "']");
+				for(var i = 0; i < child_candidates.length; i++) {
+					if(child_candidates[i].id.indexOf(tabId) == 0) {
+						child_candidate = $('#'+child_candidates[i].id);
+						child_sequence_num = child_candidate.data('sequence-num');
+						if(sequence_number == child_sequence_num) {
+							child_candidate.parent().remove();
+						}
+					}
+				}
+			}
+			$('#'+id+'_form_group').remove();
+		}
+	  });
+
+	var uniqueEntryId = 1;
+	var parentNodeMap = {};
+	function buildTabContent(tabId, node, parentFormGroupId, sequence_number, markup) {
+		var tab_content = '';
+		var list_info = '';
+		var list_button = '';
+		var parent_node = $('#evts').jstree(true).get_parent(node);
+		var node_id = '#';
+		if(parent_node != '#') {
+			parent = $('#evts').jstree(true).get_node(parent_node);
+			var node_text = uniqueEntryId++;
+
+			// if(sequence_number) {
+			// 	node_text += '_' + sequence_number;
+			// }
+			// node_id = tabId + '__' + parent_text + '_' + node.text
+			node_id = tabId + '__' + node_text + 'vwv' + sequence_number;
+
+			parentNodeMap[node_id] = parentFormGroupId;
+
+			tab_content = page_form_group_string.split('##NAME##').join(node_id)
+				.replace('##LABEL##',node.text)
+				.replace('##PARENTID##', parent.id)
+				.replace('##NODEID##', node.id);
+			if(node.type == 'list') {
+				if(markup) {
+					if (markup['sequence']) {
+						for(var i = 0; i < markup['sequence'].length; i++) {
+							sub_node = $.extend(true, {}, node );
+							sub_node.type = 'list_item'
+							sub_node.text = node.text + ' ['+(i+1)+']';
+							tab_content += buildTabContent(tabId, sub_node, parentFormGroupId, i+1, markup['sequence'][i]);
+						}
+					}
+				}
+				else {
+					sub_node = $.extend(true, {}, node );
+					sub_node.type = 'list_item'
+					sub_node.text = node.text + ' [1]';
+					tab_content += buildTabContent(tabId, sub_node, parentFormGroupId, 1);
+
+					sub_node = $.extend(true, {}, node );
+					sub_node.type = 'list_item'
+					sub_node.text = node.text + ' [2]';
+					tab_content += buildTabContent(tabId, sub_node, parentFormGroupId, 2);
+
+					sub_node = $.extend(true, {}, node );
+					sub_node.type = 'list_item'
+					sub_node.text = node.text + ' [3]';
+					tab_content += buildTabContent(tabId, sub_node, parentFormGroupId, 3);
+
+					sub_node = $.extend(true, {}, node );
+					sub_node.type = 'list_item'
+					sub_node.text = node.text + ' [last]';
+					tab_content += buildTabContent(tabId, sub_node, parentFormGroupId, 99999);
+				}
+
+				list_info = '';
+				list_button = '<a id="'+node_id+'_add_list_item" class="markup_button"><i class="add_list_item glyphicon glyphicon-plus-sign"></i></a>';
+			}
+			else if(node.type == 'list_item') {
+				list_button = '<a id="'+node_id+'_delete_list_item" class="markup_button"><i class="delete_list_item glyphicon glyphicon-remove"></i></a>';
+			}
+
+			if(sequence_number) {
+				list_info = ' data-sequence-num=' + sequence_number;
+			}
+
+			if(parent.type == 'list_item' && sequence_number) {
+				list_info = ' data-parent-node-is-list=true data-sequence-num=' + sequence_number;
+			}
+		}
+		tab_content = tab_content.replace('##LIST_INFO##', list_info).replace('##LIST_ADD_BUTTON##', list_button);
+
+		if(node.children && node.type != 'list') {
+			$.each( node.children, function( index, child ) {
+				// before_node_id = node_id;
+				var sub_markup = null;
+				if(markup && child.text in markup) {
+					sub_markup = markup[child.text];
+				}
+				tab_content += page_form_border_string.replace('##FORM_GROUPS##', buildTabContent(tabId, child, node_id, sequence_number, sub_markup));
+				// node_id = before_node_id;
+			});
+		}
+
+		// tab_content = page_form_border_string.replace('##FORM_GROUPS##', tab_content);
+		return tab_content;
+	}
+
+	/**** Learning Stuff ****/
+	$("#learn-button").on("click", function (e) {
+
+		$('.loading').show();
+		generateAndSaveMarkup(true);
+		$.post( "/do_learning", JSON.stringify({'project_folder': project_folder}), function( data ) {
+			loadRules(data.rules);
+			$('.loading').hide();
+		}).fail(function(data) {
+			//TODO: display some sort of error
+			alert('Error learning...');
+			console.log(data);
+			$('.loading').hide();
+		});
+
+	});
+
+	function loadRules(rules) {
+		rules_json = JSON.stringify(rules, null, 2);
+		rules_json = rules_json.replace(/>/g,'&gt;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+		$('#rules-data').html(rules_json);
+	}
+
+	/**** End Learning ****/
+
+	/**** Generation Stuff ****/
+	$("#generate-button").on("click", function (e) {
+		generateAndSaveMarkup();
+	});
+
+	function generateAndSaveMarkup(fromLearning) {
+		$('.loading').show();
+		var ref = $('#evts').jstree(true);
+		markup_json = {}
+		$.each( $(".nav-tabs a"), function( index, child ) {
+			page_id = $(this).text();
+			if(!$(this).hasClass('add-contact')) {
+				markup_json[page_id] = {};
+				form = $('#' + $(this).context.id.slice(1));
+				fields = form.find('.form-group');
+				$.each( fields, function( index, child ) {
+					id = $(child).context.id.replace('_form_group', '');
+					node_id = $(child).attr('data-node-id');
+					node = ref.get_node(node_id);
+
+					parent_id = $(child).attr('data-parent-node-id');
+					parent_node = ref.get_node(parent_id);
+					parent = parent_node.text
+					sequence_number = $(child).attr('data-sequence-num');
+
+					label = $(child).find('label').text();
+					value_div = $('#' + id.replace( /(:|\.|\[|\]|,)/g, "\\$1" ).replace(/ /g, "\\ ") + '_value_div');
+
+					value = '';
+					if (value_div[0].children.length > 2) {
+						value = '';
+						$(value_div).find('input').each(function( index, child ) {
+							if(value) {
+								value += '##DONTCARE##';
+							}
+							value += $(child).val();
+						  });
+					}
+					else {
+						value = $(value_div).find('input').val();
+					}
+
+					var new_parents = []
+					var parent_all = parentNodeMap[id];
+					var new_base = markup_json[page_id];
+					while(parent_all != '#') {
+						new_parents.push(parent_all);
+						parent_all = parentNodeMap[parent_all];
+					}
+
+					var parent_info = [];
+					for (var i = new_parents.length-1; i >= 0; --i) {
+						var form_group_div = $('#'+new_parents[i]+'_form_group');
+
+						var _sub_sequence_number = Number(new_parents[i].substring(new_parents[i].lastIndexOf('vwv')+3));
+
+						var tree_node = ref.get_node($(form_group_div).attr('data-node-id'));
+						var parent_index = tree_node.text;
+						var parent_is_list = tree_node.type == 'list' ? true:false;
+
+						parent_with_sub = {'parent_id': parent_index};
+						if(_sub_sequence_number && parent_is_list) {
+							parent_with_sub['sequence_number'] = Number(_sub_sequence_number);
+						}
+
+						parent_info.push(parent_with_sub);
+					}
+
+					parent_node_is_list = parent_node.type == 'list' ? true:false;
+					node_is_list = node.type == 'list' ? true:false;
+
+					parents = parent_info;
+
+					// Root by default
+					var base = markup_json[page_id];
+
+					if(parents.length > 0) {
+						for(index in parents) {
+							if(!base[parents[index]['parent_id']]) {
+								base[parents[index]['parent_id']] = {};
+							}
+							if(parents[index]['sequence_number']) {
+								if(!base[parents[index]['parent_id']]['sequence']) {
+									base[parents[index]['parent_id']]['sequence'] = [];
+								}
+								found = false;
+								for(sequence_item in base[parents[index]['parent_id']]['sequence']) {
+									if(base[parents[index]['parent_id']]['sequence'][sequence_item]['sequence_number'] == parents[index]['sequence_number']) {
+										base = base[parents[index]['parent_id']]['sequence'][sequence_item];
+										found = true;
+									}
+								}
+								if(!found) {
+									sequence_info = {};
+									sequence_info['sequence_number'] = Number(sequence_number);
+									sequence_info['extract'] = '';
+									base[parents[index]['parent_id']]['sequence'].push(sequence_info);
+									for(sequence_item in base[parents[index]['parent_id']]['sequence']) {
+										if(base[parents[index]['parent_id']]['sequence'][sequence_item]['sequence_number'] == parents[index]['sequence_number']) {
+											base = base[parents[index]['parent_id']]['sequence'][sequence_item];
+										}
+									}								
+								}
+							}
+							else {
+								base = base[parents[index]['parent_id']];
+							}
+						}
+					}
+					else {
+						// if(sequence_number) {
+						// 	// List at root
+						// 	base = base[label.substring(0, label.lastIndexOf("[")-1)];
+						// }
+					}
+
+					if(node_is_list) {
+						if( label.lastIndexOf("[") > 0) {
+							label = label.substring(0, label.lastIndexOf("[")-1);
+							
+							base = base[label];
+							if(!base['sequence']) {
+								base['sequence'] = [];
+							}
+							sequence_info = {};
+							sequence_info['sequence_number'] = Number(sequence_number);
+							sequence_info['extract'] = value;
+
+							base['sequence'].push(sequence_info);
+						}
+						else {
+							if(!base[label]) {
+								base[label] = {};
+							}
+							base[label]['extract'] = value;
+						}
+					}
+					else {
+						base[label] = {};
+						base[label]['extract'] = value;
+					}
+				});
+			}
+		  });
+
+		markup_json['__SCHEMA__'] = $("#evts").jstree(true).get_json('#');
+		markup_json['__URLS__'] = urls;
+		$('#markup-data').html(JSON.stringify(markup_json, null, 2).split('>').join('&gt;').split('<').join('&lt;'));
+
+		$.post( "/save_markup", JSON.stringify({'project_folder': project_folder, 'markup': markup_json}), function( data ) {
+			//If the previous SCHEMA had no children then fill it in!
+			if( $("#evts").jstree(true).get_json('#')[0]['children'].length == 0 ) {
+				//remove previous ones!
+				$.each( $(".nav-tabs a"), function( index, child ) {
+			    	if(!$(this).hasClass('add-contact')) {
+				        var anchor = $(this);
+
+				        delete urls[anchor.text()];
+
+				        $(anchor.attr('href')).remove();
+				        $(this).parent().remove();
+			    	}
+				});
+
+				loadMarkup(data);
+			}
+			else if (!fromLearning) {
+				$('.loading').hide();
+			}
+
+		}).fail(function(data) {
+			//TODO: display some sort of error
+			console.log(data);
+			$('.loading').hide();
+		});
+	}
+
+	function loadMarkup(markup_json) {
+		$('#evts').jstree(true).settings.core.data = markup_json['__SCHEMA__'];
+	    $('#evts').jstree(true).refresh();
+
+	    $('#markup-data').html(JSON.stringify(markup_json, null, 2).split('>').join('&gt;').split('<').join('&lt;'));
+
+	    delete markup_json['__SCHEMA__'];
+	    urls = markup_json['__URLS__'];
+	    delete markup_json['__URLS__']
+
+	    setTimeout(function() {
+		    for(item in markup_json) {
+		    	page_name = item;
+		    	new_page_url = urls[item];
+
+		    	// $('.add-contact').click();
+    		    id = $(".nav-tabs").children().length - 1; //think about it ;)
+			    var tabId = 'contact_' + id;
+			    $('#\\' + '#contact_' + id).html(item);
+
+				$(".add-contact").closest('li').before('<li><a id="#contact_' + id + '" href="#contact_' + id + '"><i class="glyphicon glyphicon-pencil"></i>' + page_name + '</a> <span> <i class="glyphicon glyphicon-remove-circle"></i> </span></li>');
+
+		    	var tree_json = $("#evts").jstree(true).get_json('#');
+		    	
+				var tab_content = buildTabContent(tabId, tree_json[0], null, null, markup_json[item]);
+
+			    $('.tab-content').append('<div class="tab-pane" id="' + tabId + '"><div class="html_link"><a href="'+new_page_url+'" target="_blank">'+new_page_url+' <i class="glyphicon glyphicon-new-window"></i></a></div><div id="'+tabId+'_cached_link" class="html_link">Cached: <a href="/static/project_folders/'+project_folder+'/'+page_name+'" target="_blank">/static/project_folders/'+project_folder+'/'+page_name+' <i class="glyphicon glyphicon-new-window"></i></a></div><div class="markup_content">' + page_form_string.replace('##FORM_GROUPS##', tab_content) + '</div>');
+
+			    var page = markup_json[item];
+			    // console.log(page)
+			    var labels = Object.keys(page);
+			    // console.log(labels);
+		    }
+
+		    one_clicked = false;
+			total=$(".nav-tabs a").length-1;
+
+			$.each( $(".nav-tabs a"), function( index, child ) {
+			    	if(!$(this).hasClass('add-contact')) {
+				    	page_id = $(this).text();
+			    		form = $('#' + $(this).context.id.slice(1)).children().children();
+						recursivelyFillInForm(form, markup_json[page_id], [page_id], 1);
+
+						// nodes = form.children('.form-horizontal.border')
+						// $.each(nodes, function(index, child){
+						// 	recursivelyFillInForm(this, markup_json, [page_id], 2);
+						// });
+						// fields = form.find('.form-group');
+						// console.log(fields);
+						// $.each( fields, function( index, child ) {
+						// 	label = $(this).find('.control-label').contents().text();
+						// 	value = markup_json[page_id][label]['extract'];
+						// 	field = $(this).find('.form-control')
+						// 	$(field).val(value);
+						// });
+						
+						if(!one_clicked) {
+							$('#\\'+ $(this).context.id).click();
+							one_clicked = true;
+						}
+						total--;
+						if(total <=0) {
+							$('.loading').hide();
+						}
+			    	}
+			});
+	    }, 500);
+
+		if(Object.keys(markup_json).length == 0) {
+			$('.loading').hide();
+		}
+	}
+
+	$('#raw_results').on('hidden.bs.collapse', function () {
+		$('#toggleraw').html('<i class="glyphicon glyphicon-collapse-down"></i>');
+	}).on('shown.bs.collapse', function() {
+		$('#toggleraw').html('<i class="glyphicon glyphicon-collapse-up"></i>');
+	});
+	</script>
+
+<div class="loading" style="display:none;">Loading&#8230;</div>
+
+    <div class="container mainpage">
+	    <div class="row col-xs-4 col-sm-4 col-md-4 col-lg-4 schema">
+	            <h3>Schema Definitions</h3>
+	            <div class="row">
+	                <button type="button" class="btn btn-success btn-sm" onclick="demo_create_item();"><i class="glyphicon glyphicon-stop"></i> Create Item</button>
+	                <button type="button" class="btn btn-success btn-sm" onclick="demo_create_list();"><i class="glyphicon glyphicon-th-list"></i> Create List</button>
+	                <button type="button" class="btn btn-warning btn-sm" onclick="demo_rename();"><i class="glyphicon glyphicon-pencil"></i> Rename</button>
+	                <button type="button" class="btn btn-danger btn-sm" onclick="demo_delete();"><i class="glyphicon glyphicon-remove"></i> Delete</button>
+	            </div>
+	            <div class="row">
+                	<div id="evts" class="demo" style="margin-top:1em; height: 500px; min-height:400px;"></div>
+        		</div>
+        </div>
+		<div class="row col-xs-8 col-sm-8 col-md-8 col-lg-8 markup">
+	            <h3>Markup <span id='project_folder'></span></h3>
+				<div class="row">
+				    <ul class="nav nav-tabs" role="tablist">
+				        <li><a href="#" class="add-contact"><i class="glyphicon glyphicon-plus"></i> Add Page</a>
+				        </li>
+				    </ul>
+				    <div class="tab-content">
+				    </div>
+				</div>
+				<div class="row" style="padding-top: 10px; text-align: right;">
+	                <button id="learn-button" type="button" class="btn btn-success btn-sm" onclick=""><i class="glyphicon glyphicon-play"></i> Learn Rules</button>
+	                <button id="generate-button" type="button" class="btn btn-warning btn-sm" onclick=""><i class="glyphicon glyphicon-file"></i> Save Markup</button><br>
+				</div>
+    	</div>
+    </div>
+	
+	<button id='toggleraw' style="margin-top: 10px; margin-right: -15px; float:right;" type="button" class="btn btn-default btn-sm" data-toggle="collapse" data-target="#raw_results"><i class="glyphicon glyphicon-collapse-down"></i></button>
+	<div id="raw_results" class="collapse">
+	<div class="row jsonblocks">
+		<ul class="nav nav-tabs-json">
+			<li class="active"><a data-target="#rules-tab" data-toggle="tab">Rules</a></li>
+			<li><a data-target="#markup-tab" data-toggle="tab">Markup</a></li>
+		</ul>
+
+		<div class="tab-content">
+			<div class="tab-pane active" id="rules-tab">
+				<pre border="0"><code id="rules-data" class="language-json" data-lang="json" contenteditable="false"></code></pre>
+			</div>
+			<div class="tab-pane" id="markup-tab">
+				<pre border="0"><code id="markup-data" class="language-json" data-lang="json" contenteditable="false"></code></pre>
+			</div>
+		</div>
+	</div>
+	</div>
+
+	<div id="modal-content-start-select" class="modal fade" data-backdrop="static" data-keyboard="false">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+			    <div class="modal-header">
+			        <h3>Get Started</h3>
+			    </div>
+				<form id="start_form" class="form change_name" ng-submit="startFormSubmit()">
+			    	<div class="modal-body">
+			        	<div class="form-group">
+			        		<div class="html_link"><a href="/projects" target="_blank">List of projects <i class="glyphicon glyphicon-new-window"></i></a></div>
+				            <input id="modal-project-name" type="text" class="form-control" placeholder="Enter Project Folder Name"></input>
+				        </div>
+			        <div id="modal-project-name-error" class="error"></div>
+			    </div>
+			    <div class="modal-footer">
+			    	<button type="button" class="btn btn-default btn-sm" ng-click="cancelMarkup()">Cancel</button>
+			        <input class="btn btn-success btn-sm" type="submit" value="Let's Go!">
+			    </div>
+		        </form>
+		    </div><!-- /.modal-content -->
+		</div><!-- /.modal-dialog -->
+	</div><!-- /.modal -->
+
+	<div id="modal-content-change-name" class="modal fade">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+			    <div class="modal-header">
+			        <a class="close" data-dismiss="modal">×</a>
+			        <h3>Change Page Name</h3>
+			    </div>
+		        <form id="change_name" class="form change_name">
+				    <div class="modal-body">
+			        	<div class="form-group">
+				            <input id="modal-name" type="text" class="form-control" autofocus></input>
+				        </div>
+				    </div>
+				    <div id="modal-change-name-error" class="error"></div>
+			    <div class="modal-footer">
+			        <input class="btn btn-success btn-sm" type="submit" value="Change it!">
+			        <a href="#" class="btn" data-dismiss="modal">Cancel</a>
+			    </div>
+		        </form>
+		    </div><!-- /.modal-content -->
+		</div><!-- /.modal-dialog -->
+	</div><!-- /.modal -->
+
+	<div id="modal-content-sequence-num" class="modal fade">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+			    <div class="modal-header">
+			        <a class="close" data-dismiss="modal">×</a>
+			        <h3>Change Page Name</h3>
+			    </div>
+			    <div class="modal-body">
+			        <form class="form change_name">
+			        	<div class="form-group">
+				            <input id="modal-sequence-num" type="number" class="form-control" autofocus></input>
+				        </div>
+			        </form>
+			    </div>
+			    <div class="modal-footer">
+			        <input class="btn btn-success btn-sm" onclick="add_sequence_number();" value="Change it!">
+			        <a href="#" class="btn" data-dismiss="modal">Cancel</a>
+			    </div>
+		    </div><!-- /.modal-content -->
+		</div><!-- /.modal-dialog -->
+	</div><!-- /.modal -->
+
+	<div id="modal-add-page" class="modal fade">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+			    <div class="modal-header">
+			        <a class="close" data-dismiss="modal">×</a>
+			        <h3>Add Page</h3>
+			    </div>
+		        <form id="add_page_url_form" class="form change_name">
+			    <div class="modal-body">
+			        	<div class="form-group">
+				            <input id="modal-page-url" type="text" class="form-control" autofocus></input>
+				        </div>
+				    <div id="modal-page-url-error" class="error"></div>
+			    </div>
+
+			    <div class="modal-footer">
+			        <input class="btn btn-success btn-sm" type="submit" value="Add it!">
+			        <a href="#" class="btn" data-dismiss="modal">Cancel</a>
+			    </div>
+		        </form>
+		    </div><!-- /.modal-content -->
+		</div><!-- /.modal-dialog -->
+	</div><!-- /.modal -->

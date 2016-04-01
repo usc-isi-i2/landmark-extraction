@@ -1,3 +1,21 @@
+# Landmark Markup Tool
+
+### Install the proper requirements
+```pip install -r requirements.txt```
+
+### Run it!
+Go to the src directory
+```cd src```
+
+Run the server
+```
+$ python runserver.py 
+INFO:werkzeug: * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+INFO:werkzeug: * Restarting with stat
+```
+
+Go to the site at http://localhost:5000/ and learn rules!
+
 # Landmark Extraction
 
 ## Running

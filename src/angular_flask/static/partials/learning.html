@@ -1,0 +1,18 @@
+<form class="container form-horizontal">
+	<font color="red">{{errorMessage}}</font><br>
+	<div class="form-group">
+	  <label for="markup_file" class="col-sm-2 control-label">Markup File</label>
+	  <div class="col-sm-6">
+	    <select name="repeatSelect" id="markup_file" ng-model="markup_file">
+	      <option ng-repeat="file in markup_files" value={{file}} ng-model="markup_files">{{file}}</option>
+	    </select>
+	  </div>
+	</div>
+	<div class="form-group">
+	  <div class="col-sm-offset-2 col-sm-10">
+		<button type="button" class="btn btn-primary" ng-click="runLearning()">Learn</button>
+	  </div>
+	</div>
+	<hr>
+	<pre>{{results}}</pre>
+</form>

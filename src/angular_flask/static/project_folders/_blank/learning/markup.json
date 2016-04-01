@@ -1,0 +1,26 @@
+{
+  "__SCHEMA__": [
+    {
+      "id": "j1_1",
+      "text": "Root",
+      "icon": "glyphicon glyphicon-stop",
+      "li_attr": {
+        "id": "j1_1"
+      },
+      "a_attr": {
+        "href": "#",
+        "id": "j1_1_anchor"
+      },
+      "state": {
+        "loaded": true,
+        "opened": true,
+        "selected": false,
+        "disabled": false
+      },
+      "data": {},
+      "children": [],
+      "type": "default"
+    }
+  ],
+  "__URLS__": {}
+}

@@ -1,0 +1,31 @@
+    <div class="navbar navbar-inverse navbar-fixed-top" role="navigation" ng-controller="HeaderController">
+      <div class="container">
+        <div class="navbar-header">
+          <a class="navbar-brand" href="/">InferLink {Landmark}</a>
+        </div>
+         <div class="collapse navbar-collapse">
+          <ul class="nav navbar-nav">
+            <li>
+            	<form class="navbar-form form-inline">
+<!-- 					  <select class="form-control" 
+					  onchange="changeSelectedProject()" 
+					  id="rules_file" 
+					  style="cursor:pointer;width:100%;height:30px;margin:0;padding:0" 
+					  ng-options="item for item in project_folders track by index"
+					  ng-model="selected_project_folder">
+					  </select> -->
+
+				    <select class="form-control" name="repeatSelect" id="rules_file" ng-change="changeSelectedProject()" ng-model="$root.selected_project_folder" ng-options="option as option for option in $root.project_folders">
+<!--  				      <option value="__select_project__">-- Select a Project --</option>
+				      <option value="__new_project__">-- New Project --</option>
+ --><!--				      <option ng-repeat="file in project_folders" value={{file}} ng-model="$rootScope.selected_project_folder">{{file}}</option> -->
+				    </select>
+            	</form>
+            </li>
+            <li><a href="/markup">Markup</a></li>
+            <li><a href="/extraction">Extraction</a></li>
+            <li><a href="/projects">Downloads</a></li>
+          </ul>
+        </div> <!--/.nav-collapse -->
+      </div>
+    </div>

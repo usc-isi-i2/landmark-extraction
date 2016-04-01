@@ -206,6 +206,7 @@ class ItemRule(Rule):
         json_dict['include_end_regex'] = self.include_end_regex
         json_dict['end_regex'] = self.end_regex
         json_dict['strip_end_regex'] = self.strip_end_regex
+        json_dict['removehtml'] = self.removehtml
         if self.sub_rules:
             json_dict['sub_rules'] = json.loads(self.sub_rules.toJson())
         return json.dumps(json_dict)
