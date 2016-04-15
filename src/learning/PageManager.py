@@ -11,6 +11,7 @@ import time
 from itertools import groupby
 from operator import itemgetter
 from __builtin__ import int
+from postprocessing.PostProcessor import RemoveHtml
 
 cachedStopWords = stopwords.words("english")
 cachedStopWords.append(',')
@@ -442,7 +443,7 @@ class PageManager(object):
             list_name = '_list'+format(count, '04')
             count += 1
             
-            row_page_manager = PageManager()
+            row_page_manager = PageManager(self._WRITE_DEBUG_FILES)
             
             for page_id in list_location['pages'].keys():
                 if page_id not in markup:
@@ -465,19 +466,22 @@ class PageManager(object):
                     
                     row_markup['sequence_number'] = row_info['sequence_num']
                     (row_start, row_end) = row_info['location']
-                    row_text_invisible_offset_start = 0
-                    for token in page.tokens[row_start:row_end]:
-                        if token.visible:
-                            break
-                        row_text_invisible_offset_start += 1
-                    row_text_invisible_offset_end = 0
-                    for token in reversed(page.tokens[row_start:row_end]):
-                        if token.visible:
-                            break
-                        row_text_invisible_offset_end += 1
                     
-                    row_text = page.tokens.getTokensAsString(row_start+row_text_invisible_offset_start, row_end-row_text_invisible_offset_end, True)
-                    ## Trim off all the invisible stuff in the row text so we can actually learn things
+                    
+                    ## Trim off the start and end tags so we can learn things
+                    row_text_offset_start = 0
+                    for token in page.tokens[row_start:row_end]:
+                        row_text_offset_start += 1
+                        if token.token == '>':
+                            break
+                    row_text_offset_end = 0
+                    for token in reversed(page.tokens[row_start:row_end]):
+                        row_text_offset_end += 1
+                        if token.token == '<':
+                            break
+                    
+                    row_text = page.tokens.getTokensAsString(row_start+row_text_offset_start, row_end-row_text_offset_end, True)
+                    
                     row_markup['extract'] = row_text
                     markup[page_id][list_name]['sequence'].append(row_markup)
                 
@@ -485,18 +489,19 @@ class PageManager(object):
                 for row in rows:
                     (start, end) = row['location']
                     page_name = page_id + str(row['sequence_num'])
-                    row_page_manager.addPage(page_name, page.tokens.getTokensAsString(start, end, True), False)
-        
+                    row_page_manager.addPage(list_name+page_name, page.tokens.getTokensAsString(start, end, True), False)
+
             row_page_manager.learnStripes()
             row_rules = row_page_manager.learnAllRules(True)
-            row_markups, names = row_page_manager.rulesToMarkup(row_rules)
-            list_names[list_name] = names
-            for markup_page in row_markups.keys():
-                page_id =  markup_page.split('.html')[0] + '.html'
-                sequence_num = markup_page.split('.html')[-1]
-                for name in names:
-                    if name in row_markups[markup_page]:
-                        markup[page_id][list_name]['sequence'][int(sequence_num)-1][name] = row_markups[markup_page][name]
+            if len(row_rules.rules) > 1:
+                row_markups, names = row_page_manager.rulesToMarkup(row_rules, True)
+                list_names[list_name] = names
+                for markup_page in row_markups.keys():
+                    page_id =  markup_page.split('.html')[0][len(list_name):] + '.html'
+                    sequence_num = markup_page.split('.html')[-1]
+                    for name in names:
+                        if name in row_markups[markup_page]:
+                            markup[page_id][list_name]['sequence'][int(sequence_num)-1][name] = row_markups[markup_page][name]
         return markup, list_names
     
     def __get_list_rows(self, page_id, list_location):
@@ -518,7 +523,8 @@ class PageManager(object):
                 end = self.__find_list_span(loc+1, list_tokens, start_tag, end_tag)
                 if end > 0:
                     row_info = {}
-                    row_info['tag'] = start_tag
+                    row_info['start_tag'] = start_tag
+                    row_info['end_tag'] = end_tag
                     row_info['location'] = (loc+start, end+start)
                     row_info['sequence_num'] = sequence
                     sequence += 1
@@ -673,7 +679,7 @@ class PageManager(object):
                     myfile.write(output_html)
                     myfile.close()
                     
-    def rulesToMarkup(self, rule_set):
+    def rulesToMarkup(self, rule_set, remove_html = False):
         markup = {}
         counts = {}
         for name in rule_set.names():
@@ -691,6 +697,10 @@ class PageManager(object):
                 if name in extraction:
                     if extraction[name]:
                         extract = extraction[name]['extract']
+                        if remove_html:
+                            processor = RemoveHtml(extract)
+                            extract = processor.post_process()
+                            extract = extract.strip()
                         if extract:
                             markup[page_id][name] = {}
                             markup[page_id][name]['extract'] = extract
@@ -811,13 +821,11 @@ class PageManager(object):
                     sub_page_extract = rule.apply(real_page.getString())
                     
                     if sub_page_extract['extract']:
+                        sub_page_id = page_id + "_sub"
+                        if sub_page_id not in sub_rules_markup:
+                            sub_rules_markup[sub_page_id] = {}
                         for item in page[page_id]:
                             if item not in ['begin_index', 'end_index', 'extract', 'sequence', 'sequence_number']:
-                                sub_page_id = page_id + "_" + item
-                                
-                                if sub_page_id not in sub_rules_markup:
-                                    sub_rules_markup[sub_page_id] = {}
-                                
                                 sub_rules_markup[sub_page_id][item] = page_markups[page_id][key][item]
                                 sub_rules_page_manager.addPage(sub_page_id, sub_page_extract['extract'])
                 
@@ -980,7 +988,7 @@ class PageManager(object):
                     
                         #build the sub_markups and pages as we are looking through the sequence
                         for item in item_1:
-                            sub_page_id = page_id+"-"+item+str(sequence_number)
+                            sub_page_id = page_id+key+"_sub"+str(sequence_number)
                             if item not in ['begin_index', 'end_index', 'extract', 'sequence', 'sequence_number']:
                                 sub_page_text = ''
                                 tokens_with_detail = location_finder_page_manager.getPage(page_id).tokens
@@ -1018,7 +1026,7 @@ class PageManager(object):
                         
                         text_item1 = ''
                         tokens_with_detail = location_finder_page_manager.getPage(page_id).tokens
-                        for index in range(locations_of_item1[0][0], locations_of_item1[0][1]):
+                        for index in range(locations_of_item1[0][0], locations_of_item1[0][1]+1):
                             token_with_detail = tokens_with_detail[index]
                             if token_with_detail.whitespace_text:
                                 text_item1 = text_item1 + token_with_detail.whitespace_text
@@ -1039,17 +1047,17 @@ class PageManager(object):
                                 text_between = text_between.replace(PAGE_BEGIN, '').replace(PAGE_END, '')
                                 
 #                                 print page_id+str(sequence_number) + "--- " + text_between
-                                begin_sequence_page_manager.addPage("begin"+page_id+str(sequence_number), text_between, False)
-                                begin_sequence_starts["begin"+page_id+str(sequence_number)] = 0
+                                begin_sequence_page_manager.addPage("begin"+key+page_id+str(sequence_number), text_between, False)
+                                begin_sequence_starts["begin"+key+page_id+str(sequence_number)] = 0
                                 # TODO: where does this really "end"
                                 begin_sequence_goto_points = locations_of_item1[0][0]
                                 
-                                end_sequence_page_manager.addPage("end"+page_id+str(sequence_number), text_item1+text_between, False)
-                                end_sequence_markup["end"+page_id+str(sequence_number)] = {}
-                                end_sequence_markup["end"+page_id+str(sequence_number)]['item'] = {}
-                                end_sequence_markup["end"+page_id+str(sequence_number)]['item']['extract'] = text_item1
-                                end_sequence_starts["end"+page_id+str(sequence_number)] = 0
-                                end_sequence_goto_points["end"+page_id+str(sequence_number)] = locations_of_item1[0][1] - locations_of_item1[0][0]
+                                end_sequence_page_manager.addPage("end"+key+page_id+str(sequence_number), text_item1+text_between, False)
+                                end_sequence_markup["end"+key+page_id+str(sequence_number)] = {}
+                                end_sequence_markup["end"+key+page_id+str(sequence_number)]['item'] = {}
+                                end_sequence_markup["end"+key+page_id+str(sequence_number)]['item']['extract'] = text_item1
+                                end_sequence_starts["end"+key+page_id+str(sequence_number)] = 0
+                                end_sequence_goto_points["end"+key+page_id+str(sequence_number)] = locations_of_item1[0][1] - locations_of_item1[0][0]
                         
                         #add what is in front of this one to the begin_sequence_page_manager
                         if sequence_number == 1:
@@ -1064,7 +1072,7 @@ class PageManager(object):
                             
                             if text_between:
 #                                 print page_id+"0" + "--- " + text_between
-                                begin_sequence_page_manager.addPage("begin"+page_id+"0", text_between, False)
+                                begin_sequence_page_manager.addPage("begin"+key+page_id+"0", text_between, False)
                             else:
                                 num_with_nothing_at_begin = num_with_nothing_at_begin + 1
                             
@@ -1088,12 +1096,12 @@ class PageManager(object):
                         logger.info("Unable to find markup for sequence number %s on page %s: %s", sequence_number, page_id, item_1['extract'])
                 if last_row_text:
 #                     print page_id+str(highest_sequence_number) + "--- " + last_row_text
-                    end_sequence_page_manager.addPage("end"+page_id+str(highest_sequence_number), last_row_text_item1+last_row_text, False)
-                    end_sequence_markup["end"+page_id+str(highest_sequence_number)] = {}
-                    end_sequence_markup["end"+page_id+str(highest_sequence_number)]['item'] = {}
-                    end_sequence_markup["end"+page_id+str(highest_sequence_number)]['item']['extract'] = last_row_text_item1
-                    end_sequence_starts["end"+page_id+str(highest_sequence_number)] = 0
-                    end_sequence_goto_points["end"+page_id+str(highest_sequence_number)] = last_row_goto_point
+                    end_sequence_page_manager.addPage("end"+key+page_id+str(highest_sequence_number), last_row_text_item1+last_row_text, False)
+                    end_sequence_markup["end"+key+page_id+str(highest_sequence_number)] = {}
+                    end_sequence_markup["end"+key+page_id+str(highest_sequence_number)]['item'] = {}
+                    end_sequence_markup["end"+key+page_id+str(highest_sequence_number)]['item']['extract'] = last_row_text_item1
+                    end_sequence_starts["end"+key+page_id+str(highest_sequence_number)] = 0
+                    end_sequence_goto_points["end"+key+page_id+str(highest_sequence_number)] = last_row_goto_point
                 else:
                     num_with_nothing_at_end = num_with_nothing_at_end + 1
         
