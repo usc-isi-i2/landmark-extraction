@@ -384,6 +384,32 @@ class PageManager(object):
     def getSlots(self, page_id):
         return self._stripes.getSlotValues(self.getPage(page_id).getString())
     
+    def getPageChunks(self, page_id):
+        chunks = []
+        page = self.getPage(page_id)
+        previous_visible = False
+        invisible_token_buffer_before = [] #""
+        visible_token_buffer = [] #""
+        for token in page.tokens:
+            if token.token == PAGE_BEGIN or token.token == PAGE_END:
+                continue
+            if token.visible:
+                if token.whitespace_text and previous_visible:
+                    visible_token_buffer.append(token.token)
+                previous_visible = True
+            elif previous_visible:
+                previous_visible = False
+                chunks.append(' '.join(visible_token_buffer))
+                invisible_token_buffer_before = []
+                visible_token_buffer = []
+                
+                if token.whitespace_text and not previous_visible:
+                    invisible_token_buffer_before.append(token.token)
+            else:
+                if token.whitespace_text and not previous_visible:
+                    invisible_token_buffer_before.append(token.token)
+        return set(chunks)
+    
     def getDebugOutputBuffer(self, page_id):
         counter = 0;
         start_index = 0;
