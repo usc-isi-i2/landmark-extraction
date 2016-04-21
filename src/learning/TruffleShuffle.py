@@ -114,15 +114,21 @@ class TruffleShuffle(object):
     #               'coverage' : cluster by the number of pages covered by a rule, small to big (more specific to less)
     #
     # Outputs:
-    #   dict[rule] = list of page ids (Pids from the PageManager)
+    #   dict[rule] = {
+    #       'MEMBERS': list of page ids (Pids from the PageManager),
+    #       'ANCHOR': the anchoring chunk for this cluster
+    #    }
+    #   That is, each entry is a rule and its value is a dict. Note that an anchor is unique
     #   Each rule is a string of chunk_1<BRK>chunk_2<BRK>...<BRK>chunk_N
     #   it's a string to make it an index, but to use it you could break on <BRK>
     #  which you can get from the method get_chunk_separator()
+    #
     ##############################
     def do_truffle_shuffle(self, algorithm='coverage'):
         all_chunks, page_chunks_map = self.prep_truffles_to_shuffle()
         chunk_counts = {}
         seen_rules = []
+        rule_anchors = {}
         for chunk in all_chunks:
             pages_with_chunk = []
             for page_id in self.__page_manager.getPageIds():
@@ -138,6 +144,7 @@ class TruffleShuffle(object):
                 rule = self.__chunkBreakSeparator.join(other_chunks)
                 if rule not in seen_rules:
                     chunk_counts[rule] = pages_with_chunk
+                    rule_anchors[rule] = chunk
 
         if algorithm == 'coverage':
             counts = dict([(rule, len(chunk_counts[rule])) for rule in chunk_counts])
@@ -161,7 +168,10 @@ class TruffleShuffle(object):
                 pids = [p for p in chunk_counts[rule] if p not in already_clustered]
                 already_clustered.extend(pids)
                 if len(pids) > 1:
-                    final_clusters[rule] = pids
+                    final_clusters[rule] = {
+                        'MEMBERS': pids,
+                        'ANCHOR': rule_anchors[rule]
+                    }
 
         return final_clusters
 
@@ -186,8 +196,10 @@ class TruffleShuffleExperimenter(object):
         all_ads = 0
         all_non_ads = 0
         for cluster in clusters:
-            cluster_pages = clusters[cluster]
+            cluster_pages = clusters[cluster]['MEMBERS']
+            anchor = clusters[cluster]['ANCHOR']
             print '======'
+            print anchor
             print cluster
             ad_count = 0
             non_ad_count = 0
