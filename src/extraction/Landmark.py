@@ -142,6 +142,12 @@ class Rule:
     def set_sub_rules(self, sub_rules):
         self.sub_rules = sub_rules
     
+    def set_visible_chunk_before(self, visible_chunk_before):
+        self.visible_chunk_before = visible_chunk_before
+        
+    def set_visible_chunk_after(self, visible_chunk_after):
+        self.visible_chunk_after = visible_chunk_after
+    
     def __init__(self, name, validation = None, removehtml = False, sub_rules = None):
         self.name = name
         self.validation_regex = None
@@ -151,6 +157,8 @@ class Rule:
         self.sub_rules = []
         if sub_rules:
             self.sub_rules = RuleSet(sub_rules)
+        self.visible_chunk_before = None
+        self.visible_chunk_after = None
 
 class ItemRule(Rule):
     """ Rule to apply a begin set and single end regex and return only ONE value """
@@ -207,6 +215,10 @@ class ItemRule(Rule):
         json_dict['end_regex'] = self.end_regex
         json_dict['strip_end_regex'] = self.strip_end_regex
         json_dict['removehtml'] = self.removehtml
+        if self.visible_chunk_before:
+            json_dict['visible_chunk_before'] = self.visible_chunk_before
+        if self.visible_chunk_after:
+            json_dict['visible_chunk_after'] = self.visible_chunk_after
         if self.sub_rules:
             json_dict['sub_rules'] = json.loads(self.sub_rules.toJson())
         return json.dumps(json_dict)
