@@ -773,12 +773,14 @@ class PageManager(object):
                             strip_end_regex_stripes.append(end_stripes[-1])
                             strip_end_regex = self.buildRule(strip_end_regex_stripes)
                         
-                        #get visible token(s) before for the name
-                        start_location = begin_stripes[-1]['page_locations'][self.seed_page_id] 
-                        
                         rule_name = ''
+                        visible_chunk_before = ''
+                        visible_chunk_after = ''
                         tokens = []
                         if not in_list:
+                            #get visible token(s) before for the name
+                            start_location = begin_stripes[-1]['page_locations'][self.seed_page_id] + begin_stripes[-1]['tuple_size'] - 1
+                            
                             page = self.getPage(self.seed_page_id)
                             for i in range(start_location, 0, -1):
                                 token = page.tokens[i]
@@ -788,9 +790,38 @@ class PageManager(object):
                                     
                                 if len(tokens) == 1:
                                     break
+                            
+                            #get visible chunk(s) before
+                            end_location = begin_stripes[-1]['page_locations'][self.seed_page_id]
+                            visible_token_count = 0
+                            for i in range(start_location, end_location, -1):
+                                token = page.tokens[i]
+                                if token.visible:
+                                    visible_chunk_before = token.getTokenWithWhitespace() + visible_chunk_before
+                                    visible_token_count = visible_token_count + 1
+                                elif visible_token_count > 0:
+                                    break
+                            
+                            #and after
+                            start_location = end_stripes[0]['page_locations'][self.seed_page_id]
+                            end_location = start_location + end_stripes[0]['tuple_size']
+                            visible_token_count = 0
+                            for i in range(start_location, end_location):
+                                token = page.tokens[i]
+                                if token.visible:
+                                    visible_chunk_after += token.getTokenWithWhitespace()
+                                    visible_token_count = visible_token_count + 1
+                                elif visible_token_count > 0:
+                                    break
+                            
                         rule_name = ''.join(tokens)+format(count, '04')
-                        
+                        visible_chunk_before = visible_chunk_before.strip()
+                        visible_chunk_after = visible_chunk_after.strip()
                         rule = ItemRule(rule_name, start_rule, end_rule, True, strip_end_regex)
+                        if len(visible_chunk_before) > 0:
+                            rule.set_visible_chunk_before(visible_chunk_before)
+                        if len(visible_chunk_after) > 0:
+                            rule.set_visible_chunk_after(visible_chunk_after)
 #                         rule = ItemRule('slot'+format(count, '04'), start_rule, end_rule, True, strip_end_regex)
                         
                         new_values = ''
