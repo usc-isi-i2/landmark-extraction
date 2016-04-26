@@ -15,3 +15,4 @@ import controllers
 
 import extraction.Landmark
 import learning.PageManager
+import settings

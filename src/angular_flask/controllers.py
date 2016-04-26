@@ -20,6 +20,7 @@ import copy
 # routing for API endpoints, generated from the models designated as API_MODELS
 from angular_flask.core import api_manager
 from angular_flask.models import *
+from angular_flask.settings import LEARN_LISTS
 
 for model_name in app.config['API_MODELS']:
     model_class = app.config['API_MODELS'][model_name]
@@ -230,8 +231,12 @@ def save_markup():
             urls = markup.pop("__URLS__", None)
 
             pageManager.learnStripes()
-            (list_markup, list_names) = pageManager.learnListMarkups()
+            list_markup = {}
+            list_names = {}
+            if LEARN_LISTS:
+                (list_markup, list_names) = pageManager.learnListMarkups()
             rule_set = pageManager.learnAllRules()
+            rule_set.removeBadRules(pageManager)
             (markup, names) = pageManager.rulesToMarkup(rule_set)
 
             for key in markup.keys():
