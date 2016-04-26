@@ -221,11 +221,13 @@ def save_markup():
             };
 
             pageManager = PageManager()
+            test_pages = []
             for key in markup['__URLS__']:
                 page_file = os.path.join(directory, key)
                 with codecs.open(page_file, "r", "utf-8") as myfile:
                     page_str = myfile.read().encode('utf-8')
                 pageManager.addPage(key, page_str)
+                test_pages.append(page_str)
 
             schema = markup.pop("__SCHEMA__", None)
             urls = markup.pop("__URLS__", None)
@@ -236,7 +238,7 @@ def save_markup():
             if LEARN_LISTS:
                 (list_markup, list_names) = pageManager.learnListMarkups()
             rule_set = pageManager.learnAllRules()
-            rule_set.removeBadRules(pageManager)
+            rule_set.removeBadRules(test_pages)
             (markup, names) = pageManager.rulesToMarkup(rule_set)
 
             for key in markup.keys():
