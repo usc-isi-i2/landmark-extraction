@@ -378,6 +378,39 @@ class RuleSet:
             json_list.append(json.loads(rule.toJson()))
         return json.dumps(json_list, sort_keys=True, indent=2, separators=(',', ': '))
     
+    #Must have over 50 chars and more than 50% html and on 50% of the pages through this one out
+    def removeBadRules(self, page_manager):
+        min_length = 50
+        percent_with_html = 0.5
+        percent_bad = 0.5
+        good_rules = RuleSet()
+        total_pages = len(page_manager.getPageIds())
+        for rule in self.rules:
+            num_bad = 0
+            for page_id in page_manager.getPageIds():
+                page_str = page_manager.getPage(page_id).getString()
+                extraction = rule.apply(page_str)
+                extract = extraction['extract']
+                original_length = len(extract)
+                
+                if original_length > min_length and original_length > 0:
+                    processor = RemoveHtml(extract)
+                    value = processor.post_process()
+                    processor = RemoveExtraSpaces(value)
+                    value = processor.post_process()
+                    new_length = len(value)
+                    
+                    percentage = new_length/float(original_length)
+                    if percentage < percent_with_html:
+                        num_bad += 1
+            bad_percentage = num_bad/float(total_pages)
+            if bad_percentage < percent_bad:
+                good_rules.add_rule(rule)
+        
+        self.rules = []
+        for rule in good_rules.rules:
+            self.rules.append(rule)
+    
     def __init__(self, json_object=None):
         self.rules = []
         rule_list = []
