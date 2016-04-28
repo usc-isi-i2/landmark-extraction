@@ -386,7 +386,11 @@ class RuleSet:
         good_rules = RuleSet()
         total_pages = len(pages)
         for rule in self.rules:
+            previous_removehtml = rule.removehtml
+            rule.removehtml = False
             num_bad = 0
+            
+#             print 'Checking ' + rule.name
             for page_str in pages:
                 extraction = rule.apply(page_str)
                 extract = extraction['extract']
@@ -401,12 +405,16 @@ class RuleSet:
                     
                     percentage = new_length/float(original_length)
                     if percentage < percent_with_html_thresh:
+#                         print "BAD - " + extract
                         num_bad += 1
                         
             bad_percentage = num_bad/float(total_pages)
             
             if bad_percentage < percent_bad_thresh:
+                rule.removehtml = previous_removehtml
                 good_rules.add_rule(rule)
+#             else:
+#                 print bad_percentage
         self.rules = []
         for rule in good_rules.rules:
             self.rules.append(rule)
