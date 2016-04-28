@@ -19,8 +19,8 @@ class TruffleShuffle(object):
                 count += 1
                 try:
                     json_object = json.loads(line)
-                    the_file = json_object['_id']
-                    page_str = json_object['_source']['raw_content']
+                    the_file = json_object['doc_id']
+                    page_str = json_object['raw_content']
                     self.__page_manager.addPage(the_file, page_str)
                 except:
                     print 'Unable to process line %d' % count
