@@ -2,23 +2,38 @@ import os
 import codecs
 from learning.PageManager import PageManager
 from random import shuffle
+import json
 
 class TruffleShuffle(object):
 
-    def __init__(self, page_file_dir='/path/to/dir/'):
+    #json lines file is of the CDR format
+    def __init__(self, page_file_dir='/path/to/dir/', json_lines_file=None):
         self.__page_file_dir = page_file_dir
         self.__chunkBreakSeparator = '<BRK>'
         self.__page_manager = PageManager()
-
-        files = [f for f in os.listdir(self.__page_file_dir) if os.path.isfile(os.path.join(self.__page_file_dir, f))]
-        for the_file in files:
-            if the_file.startswith('.'):
-                continue
-
-            with codecs.open(os.path.join(self.__page_file_dir, the_file), "rU", "utf-8") as myfile:
-                page_str = myfile.read().encode('utf-8')
-
-            self.__page_manager.addPage(the_file, page_str)
+        
+        if json_lines_file:
+            count = 0
+            myfile = codecs.open(json_lines_file, "r", "utf-8")
+            for line in myfile:
+                count += 1
+                try:
+                    json_object = json.loads(line)
+                    the_file = json_object['_id']
+                    page_str = json_object['_source']['raw_content']
+                    self.__page_manager.addPage(the_file, page_str)
+                except:
+                    print 'Unable to process line %d' % count
+        else:
+            files = [f for f in os.listdir(self.__page_file_dir) if os.path.isfile(os.path.join(self.__page_file_dir, f))]
+            for the_file in files:
+                if the_file.startswith('.'):
+                    continue
+    
+                with codecs.open(os.path.join(self.__page_file_dir, the_file), "rU", "utf-8") as myfile:
+                    page_str = myfile.read().encode('utf-8')
+    
+                self.__page_manager.addPage(the_file, page_str)
 
     def get_chunk_separator(self):
         return self.__chunkBreakSeparator
