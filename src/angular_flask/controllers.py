@@ -271,9 +271,6 @@ def save_markup():
             if LEARN_LISTS:
                 (list_markup, list_names) = pageManager.learnListMarkups()
                 
-                print "====Brian"
-                print list_markup
-                
                 #This is the div learning
                 train_pages = {}
                 for page_id in pageManager._pages:
