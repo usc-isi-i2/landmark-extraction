@@ -376,6 +376,7 @@ class Page(object):
                 count = count + 1
             self.tuple_locations_by_size[size] = tuple_locations
 
+
 class PageManager(object):
     
     def getStripes(self):
@@ -383,7 +384,7 @@ class PageManager(object):
     
     def getSlots(self, page_id):
         return self._stripes.getSlotValues(self.getPage(page_id).getString())
-    
+            
     def getPageChunks(self, page_id):
         chunks = []
         page = self.getPage(page_id)
@@ -409,6 +410,72 @@ class PageManager(object):
                 if token.whitespace_text and not previous_visible:
                     invisible_token_buffer_before.append(token.token)
         return set(chunks)
+    
+    def getVisibleTokenStructure(self, data_as_strings=True):
+        datas = []
+        for page_id in self._pages:
+            page = self.getPage(page_id)
+            previous_visible = False
+            invisible_token_buffer_before = []
+            visible_token_buffer = []
+            first_invis_token = None
+            first_vis_token = None
+            for token in page.tokens:
+                if token.token == PAGE_BEGIN or token.token == PAGE_END:
+                    continue
+                if token.visible:
+                    if token.whitespace_text and previous_visible:
+                        visible_token_buffer.append(' ')
+                    visible_token_buffer.append(token.token)
+                    if first_vis_token is None:
+                        first_vis_token = token
+                    previous_visible = True
+                elif previous_visible:
+                    previous_visible = False
+                    if data_as_strings:
+                        datas.append({"page_id": page_id, "visible_token_buffer": ''.join(visible_token_buffer),
+                                    "invisible_token_buffer_before": ''.join(invisible_token_buffer_before),
+                                      "first_vis_token": first_vis_token, "first_invis_token": first_invis_token})
+                    else:
+                        datas.append({"page_id": page_id, "visible_token_buffer": visible_token_buffer,
+                                        "invisible_token_buffer_before": invisible_token_buffer_before,
+                                      "first_vis_token": first_vis_token, "first_invis_token": first_invis_token})
+
+                    invisible_token_buffer_before = []
+                    visible_token_buffer = []
+                    first_invis_token = None
+                    first_vis_token = None
+                    
+                    if token.whitespace_text and not previous_visible:
+                        invisible_token_buffer_before.append(' ')
+                    invisible_token_buffer_before.append(token.token)
+                    if first_invis_token is None:
+                        first_invis_token = token
+                else:
+                    if token.whitespace_text and not previous_visible:
+                        invisible_token_buffer_before.append(' ')
+                    invisible_token_buffer_before.append(token.token)
+                    if first_invis_token is None:
+                        first_invis_token = token
+        return datas
+    
+    def getVisibleTokenBuffer(self, page_id):
+        page = self.getPage(page_id)
+        previous_visible = False
+        token_buffer = ""
+        for token in page.tokens:
+            if token.token == PAGE_BEGIN or token.token == PAGE_END:
+                continue
+#             token_buffer += token.token + " - " + str(token.visible) + "\n"
+            if token.visible:
+                if token.whitespace_text and previous_visible:
+                    token_buffer += ' '
+                token_buffer += token.token
+                previous_visible = True
+            elif previous_visible:
+                previous_visible = False
+                token_buffer += "\n-------------\n"
+        return token_buffer
     
     def getDebugOutputBuffer(self, page_id):
         counter = 0;
@@ -469,6 +536,9 @@ class PageManager(object):
             list_name = '_list'+format(count, '04')
             count += 1
             
+            print "=====lists"
+            print list_name
+            
             row_page_manager = PageManager(self._WRITE_DEBUG_FILES)
             
             for page_id in list_location['pages'].keys():
@@ -528,6 +598,7 @@ class PageManager(object):
                     for name in names:
                         if name in row_markups[markup_page]:
                             markup[page_id][list_name]['sequence'][int(sequence_num)-1][name] = row_markups[markup_page][name]
+        
         return markup, list_names
     
     def __get_list_rows(self, page_id, list_location):
@@ -626,6 +697,7 @@ class PageManager(object):
                 self.blacklist_locations[page_id] = []
             
             for markup in markups[page_id]:
+                #TODO: ADD starting_token_location and end_token_location
                 if 'extract' in markups[page_id][markup]:
                     shortest_pairs = self.getPossibleLocations(page_id, markups[page_id][markup]['extract'])
                     if not shortest_pairs:
@@ -704,7 +776,32 @@ class PageManager(object):
                     output_html = DEBUG_HTML.replace('PAGE_ID', page).replace('DEBUG_HTML', self.getDebugOutputBuffer(page))
                     myfile.write(output_html)
                     myfile.close()
-                    
+    
+    def listRulesToMarkup(self, rule_set, remove_html = False):
+        markup = {}
+        names = {}
+        
+        for page_id in self._pages:
+            markup[page_id] = {}
+            
+        for page_id in self._pages:
+            page_string = self.getPage(page_id).getString()
+            extraction = rule_set.extract(page_string)
+            
+            markup[page_id] = extraction
+            for list_name in extraction:
+                markup[page_id][list_name]['extract'] = ' '
+                if list_name not in names:
+                    names[list_name] = []
+                if 'sequence' in extraction[list_name]:
+                    for sequence_item in extraction[list_name]['sequence']:
+                        if 'sub_rules' in sequence_item:
+                            for item_name in sequence_item['sub_rules']:
+                                if item_name not in names[list_name]:
+                                    names[list_name].append(item_name)
+        
+        return markup, names
+    
     def rulesToMarkup(self, rule_set, remove_html = False):
         markup = {}
         counts = {}
@@ -863,12 +960,12 @@ class PageManager(object):
             #print "key:", key
             pages = key_based_markup[key]
             (rule, isSequence, hasSubRules) = self.__learn_item_rule(key, pages)
-            
-            if not rule:
+
+            if not rule and not isSequence:
                 continue
             elif isSequence:
                 rule = self.__learn_sequence_rule(key, pages, rule)
-            
+
             if hasSubRules:
                 sub_rules_markup = {}
                 sub_rules_page_manager = PageManager(self._WRITE_DEBUG_FILES, self.largest_tuple_size)
@@ -882,7 +979,7 @@ class PageManager(object):
                         if sub_page_id not in sub_rules_markup:
                             sub_rules_markup[sub_page_id] = {}
                         for item in page[page_id]:
-                            if item not in ['begin_index', 'end_index', 'extract', 'sequence', 'sequence_number']:
+                            if item not in ['begin_index', 'end_index', 'starting_token_location', 'ending_token_location', 'extract', 'sequence', 'sequence_number']:
                                 sub_rules_markup[sub_page_id][item] = page_markups[page_id][key][item]
                                 sub_rules_page_manager.addPage(sub_page_id, sub_page_extract['extract'])
                 
@@ -890,7 +987,8 @@ class PageManager(object):
                 sub_rules = sub_rules_page_manager.learnRulesFromMarkup(sub_rules_markup)
                 rule.set_sub_rules(sub_rules)
             
-            rule_set.add_rule(rule)
+            if rule:
+                rule_set.add_rule(rule)
             
         return rule_set
     
@@ -901,12 +999,13 @@ class PageManager(object):
             if 'sequence' in page[page.keys()[0]]:
                 isSequence = True
             for item in page[page.keys()[0]]:
-                if item not in ['begin_index', 'end_index', 'extract', 'sequence', 'sequence_number']:
+                if item not in ['begin_index', 'end_index', 'starting_token_location', 'ending_token_location', 'extract', 'sequence', 'sequence_number']:
                     hasSubRules = True
         
         logger.info('Finding stripes for %s', key);
         
-        exact_bounding_stripes = self.getExactBoundingStripesForKey(pages, isSequence)  
+        exact_bounding_stripes = self.getExactBoundingStripesForKey(pages, isSequence)
+
         rule = None
         if exact_bounding_stripes is not None:
             #print "exact bounding stripes:", exact_bounding_stripes
@@ -925,6 +1024,7 @@ class PageManager(object):
                     extract = page[page_id]['extract']
                     
                     #print "extract:", extract
+                    #TODO: ADD starting_token_location and end_token_location 
                     shortest_pairs = self.getPossibleLocations(page_id, extract, False)
                     begin_stripe = exact_bounding_stripes.bounding_stripes[0]
                     end_stripe = exact_bounding_stripes.bounding_stripes[1]
@@ -980,8 +1080,11 @@ class PageManager(object):
     def __learn_sequence_rule(self, key, pages, item_rule):
         if item_rule is None:
             #This is the case where we are not given the start and end of the list so we need to learn it based on number 1 and last
+            # Unless the markup contains starting_token_location and ending_token_location
             for page_markup in pages:
                 extract = u''
+                starting_token_location = -1
+                ending_token_location = -1
                 page_id = page_markup.keys()[0]
                 if 'sequence' in page_markup[page_id]:
                     highest_sequence_number = 0
@@ -989,10 +1092,24 @@ class PageManager(object):
                         sequence_number = item['sequence_number']
                         if sequence_number == 1:
                             extract = extract + item['extract']
+                            if 'starting_token_location' in item:
+                                starting_token_location = item['starting_token_location']
                         elif sequence_number > highest_sequence_number:
                             highest_sequence_number = sequence_number
                             end_extract = item['extract']
-                page_markup[page_id]['extract'] = extract + LONG_EXTRACTION_SEP + end_extract
+                            if 'ending_token_location' in item:
+                                ending_token_location = item['ending_token_location']
+                if starting_token_location > 0 and ending_token_location > 0:
+                    page_markup[page_id]['starting_token_location'] = starting_token_location
+                    page_markup[page_id]['ending_token_location'] = ending_token_location
+                    #update stripes to remove these
+                    list_range = range(starting_token_location, ending_token_location)
+                    stripes_to_remove = []
+                    for stripe in self._stripes:
+                        if stripe['page_locations'][page_id] in list_range:
+                            stripes_to_remove.append(stripe)
+                    self._stripes = [x for x in self._stripes if x not in stripes_to_remove]
+                page_markup[page_id]['extract'] = extract + LONG_EXTRACTION_SEP + end_extract            
             (item_rule, isSequence, hasSubRules) = self.__learn_item_rule(key, pages)
         
         if item_rule is None:
@@ -1029,7 +1146,6 @@ class PageManager(object):
                 
                 full_sequence = item_rule.apply(page_string)
                 location_finder_page_manager = PageManager(self._WRITE_DEBUG_FILES, self.largest_tuple_size)
-                location_finder_page_manager.addPage(page_id, full_sequence['extract'])
                 
                 last_row_text = ''
                 last_row_text_item1 = ''
@@ -1038,7 +1154,12 @@ class PageManager(object):
                 #first find the item on the page
                 for item_1 in page_markup[page_id]['sequence']:
                     sequence_number = item_1['sequence_number']
-                    locations_of_item1 = location_finder_page_manager.getPossibleLocations(page_id, item_1['extract'])
+                    if 'starting_token_location' in item_1 and 'ending_token_location' in item_1:
+                        locations_of_item1 = [ [ item_1['starting_token_location'], item_1['ending_token_location'] ] ]
+                        location_finder_page_manager = self
+                    else:
+                        location_finder_page_manager.addPage(page_id, full_sequence['extract'])
+                        locations_of_item1 = location_finder_page_manager.getPossibleLocations(page_id, item_1['extract'])
                     
                     #TODO figure out if there is more than one location what we do...
                     if len(locations_of_item1) > 0:
@@ -1046,7 +1167,7 @@ class PageManager(object):
                         #build the sub_markups and pages as we are looking through the sequence
                         for item in item_1:
                             sub_page_id = page_id+key+"_sub"+str(sequence_number)
-                            if item not in ['begin_index', 'end_index', 'extract', 'sequence', 'sequence_number']:
+                            if item not in ['begin_index', 'end_index', 'starting_token_location', 'ending_token_location', 'extract', 'sequence', 'sequence_number']:
                                 sub_page_text = ''
                                 tokens_with_detail = location_finder_page_manager.getPage(page_id).tokens
                                 for index in range(locations_of_item1[0][0], locations_of_item1[0][1]+1):
@@ -1059,6 +1180,7 @@ class PageManager(object):
                                 
                                 sub_rules_page_manager.addPage(sub_page_id, sub_page_text)
                                 
+                                #TODO: ADD starting_token_location and end_token_location 
                                 locations_of_sub_item = sub_rules_page_manager.getPossibleLocations(sub_page_id, item_1[item]['extract'])
                                 if len(locations_of_sub_item) > 0:
                                     sub_page_item_text = ''
@@ -1090,7 +1212,10 @@ class PageManager(object):
                             text_item1 = text_item1 + tokens_with_detail[index].token
                         
                         if item_2:
-                            locations_of_item2 = location_finder_page_manager.getPossibleLocations(page_id, item_2['extract'])
+                            if 'starting_token_location' in item_2 and 'ending_token_location' in item_2:
+                                locations_of_item2 = [ [ item_2['starting_token_location'], item_2['ending_token_location'] ] ]
+                            else:
+                                locations_of_item2 = location_finder_page_manager.getPossibleLocations(page_id, item_2['extract'])
                             
                             #TODO figure out if there is more than one location what we do...
                             if len(locations_of_item2) > 0:
@@ -1164,7 +1289,14 @@ class PageManager(object):
         
         try:
             begin_sequence_page_manager.learnStripes()
-            begin_iter_rule = begin_sequence_page_manager.buildRule(begin_sequence_page_manager._stripes)
+            #HACK FOR MATTs STUFF TO "Make the stripe" - Actually this way be the way we want to do it
+            # Go in the stripes in reverse on the begin side until we hit a level 1
+            begin_stripes = []
+            for test_stripe in list(reversed(begin_sequence_page_manager._stripes)):
+                begin_stripes.append(test_stripe)
+                if test_stripe['level'] == 1:
+                    break
+            begin_iter_rule = begin_sequence_page_manager.buildRule(begin_stripes)
             if not begin_iter_rule:
                 logger.info("Unable to find begin_iter_rule. Attempting to learn last mile.")
                 logger.info("Could not learn last mile!!!")      
@@ -1179,8 +1311,16 @@ class PageManager(object):
             end_iter_rule = end_sequence_page_manager.buildRule(last_mile_stripes)
         
         try:
+            #HACK FOR MATTs STUFF TO "Make the stripe" - Actually this way be the way we want to do it
+            # Go in the stripes in reverse on the begin side until we hit a level 1
             end_sequence_page_manager.learnStripes(end_sequence_markup)
-            end_iter_rule = end_sequence_page_manager.buildRule(end_sequence_page_manager._stripes)
+            end_stripes = []
+            for test_stripe in end_sequence_page_manager._stripes:
+                end_stripes.append(test_stripe)
+                if test_stripe['level'] == 1:
+                    break
+            
+            end_iter_rule = end_sequence_page_manager.buildRule(end_stripes)
             if not end_iter_rule:
                 logger.info("Unable to find end_iter_rule. Attempting to learn last mile.")
                 last_mile = end_sequence_page_manager.__find_last_mile(end_sequence_starts, end_sequence_goto_points, 'end')
@@ -1316,14 +1456,18 @@ class PageManager(object):
     def getExactBoundingStripesForKey(self, pages, is_sequence = False):
         all_bounding_stripes = []
         for page in pages:
+            shortest_pair = []
             page_id = page.keys()[0]
-            if 'extract' in page[page_id]:
+            if 'starting_token_location' in page[page_id] and 'ending_token_location' in page[page_id]:
+                shortest_pair = [ [page[page_id]['starting_token_location'], page[page_id]['ending_token_location']] ]
+            elif 'extract' in page[page_id]:
                 extract = page[page_id]['extract']
                 #print "extract:", extract
                 shortest_pair = self.getPossibleLocations(page_id, extract, False)
-                #print "shortest_pair:", shortest_pair
-                bounding_stripes = self.getAllBoundingStripes(page_id, shortest_pair)
-                all_bounding_stripes.append(bounding_stripes)
+            
+            #print "shortest_pair:", shortest_pair
+            bounding_stripes = self.getAllBoundingStripes(page_id, shortest_pair)
+            all_bounding_stripes.append(bounding_stripes)
 
         if all_bounding_stripes:
             #print "all bounding stripes:", all_bounding_stripes
@@ -1572,6 +1716,10 @@ class PageManager(object):
     
     #exact_match = true will not remove html
     #a_page = a page id
+    
+    # replace all getPossibleLocations with this one at some point
+    def getLocations(self, page_id, markup_item, exact_match=False):
+        pass
 
     def getPossibleLocations(self, page_id, text, exact_match=False):
         #try to find it first. if we find it then just send back those locations

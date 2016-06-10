@@ -33,3 +33,5 @@ stevedore==1.0.0
 tornado==4.0
 urllib3==1.10.2
 wsgiref==0.1.2
+networkx==1.11
+pydotplus==2.0.2
