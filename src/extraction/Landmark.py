@@ -15,11 +15,12 @@
 
 import sys
 import getopt
-import re
-import json
+import re, json
 import abc
 import codecs
 import cgi
+from postprocessing.PostProcessor import RemoveExtraSpaces
+from postprocessing.PostProcessor import RemoveHtml
 
 MAX_EXTRACT_LENGTH=100000
 ITEM_RULE = 'ItemRule'
@@ -52,7 +53,7 @@ def flattenResult(extraction_object, name = 'root'):
         else:
             for extract in extraction_object:
                 result[extract] = flattenResult(extraction_object[extract], extract)
-    
+
     if isinstance(extraction_object, list):
         result = []
         for extract in extraction_object:
@@ -65,39 +66,29 @@ def loadRule(rule_json_object):
     rule_type = rule_json_object['rule_type']
     validation = None
     removehtml = False
-<<<<<<< HEAD
-=======
     include_end_regex = False #Default to false for bakward compatibility
     strip_end_regex = None
->>>>>>> 5ea4310f118c8c4ec449be36e2715abc05fdd9dc
     sub_rules = []
     if 'sub_rules' in rule_json_object:
         sub_rules = rule_json_object['sub_rules']
-    
+
     if 'validation' in rule_json_object:
         validation = rule_json_object['validation']
-    
+
     if 'removehtml' in rule_json_object:
         removehtml = rule_json_object['removehtml']
-<<<<<<< HEAD
-=======
-        
+
     if 'include_end_regex' in rule_json_object:
         include_end_regex = rule_json_object['include_end_regex']
-    
+
     if 'strip_end_regex' in rule_json_object:
         strip_end_regex = rule_json_object['strip_end_regex']
->>>>>>> 5ea4310f118c8c4ec449be36e2715abc05fdd9dc
-            
+
     """ This is where we add our new type """
     if rule_type == ITEM_RULE or rule_type == 'RegexRule':
         begin_regex = rule_json_object['begin_regex']
         end_regex = rule_json_object['end_regex']
-<<<<<<< HEAD
-        rule = ItemRule(name, begin_regex, end_regex, validation, removehtml, sub_rules)
-=======
         rule = ItemRule(name, begin_regex, end_regex, include_end_regex, strip_end_regex, validation, removehtml, sub_rules)
->>>>>>> 5ea4310f118c8c4ec449be36e2715abc05fdd9dc
     if rule_type == ITERATION_RULE or rule_type == 'RegexIterationRule':
         begin_regex = rule_json_object['begin_regex']
         end_regex = rule_json_object['end_regex']
@@ -109,61 +100,54 @@ def loadRule(rule_json_object):
         no_last_end_iter_rule = False
         if 'no_last_end_iter_rule' in rule_json_object:
             no_last_end_iter_rule = rule_json_object['no_last_end_iter_rule']
-<<<<<<< HEAD
-        
-        
-        rule = IterationRule(name, begin_regex, end_regex, iter_begin_regex,
-                                  iter_end_regex, no_first_begin_iter_rule,
-=======
-        
+
         rule = IterationRule(name, begin_regex, end_regex, iter_begin_regex, iter_end_regex,
                                   include_end_regex, strip_end_regex, no_first_begin_iter_rule,
->>>>>>> 5ea4310f118c8c4ec449be36e2715abc05fdd9dc
                                   no_last_end_iter_rule, validation, removehtml,
                                   sub_rules)
     return rule
-    
+
 class Rule:
     """ Base abstract class for all rules """
     __metaclass__ = abc.ABCMeta
-    
+
     @abc.abstractmethod
     def apply(self, page_string):
         """ Method to apply this rule. The output is a JSON object of the extraction"""
-        
+
     @abc.abstractmethod
     def toolTip(self):
         """ Method that produces an HTML tooltop for this rule """
-    
+
     @abc.abstractmethod
     def toJson(self):
         """ Method to print the rule as JSON """
-        
+
     @abc.abstractmethod
     def validate(self, value):
         """ Method to validate this rule """
-    
+
     def remove_html(self, value):
         if self.removehtml:
             processor = RemoveHtml(value)
             value = processor.post_process()
-            
+
         processor = RemoveExtraSpaces(value)
         value = processor.post_process()
         return value
-    
+
     def set_name(self, name):
         self.name = name
-    
+
     def set_sub_rules(self, sub_rules):
         self.sub_rules = sub_rules
-    
+
     def __init__(self, name, validation = None, removehtml = False, sub_rules = None):
         self.name = name
         self.validation_regex = None
         if validation:
             self.validation_regex = re.compile(validation, re.S)
-        self.removehtml = removehtml 
+        self.removehtml = removehtml
         self.sub_rules = []
         if sub_rules:
             self.sub_rules = RuleSet(sub_rules)
@@ -172,13 +156,13 @@ class ItemRule(Rule):
     """ Rule to apply a begin set and single end regex and return only ONE value """
     def apply(self, page_string):
         value = self.extract(page_string)
-        
+
         if self.sub_rules:
             value['sub_rules'] = self.sub_rules.extract(value['extract'])
-        
+
         value['extract'] = self.remove_html(value['extract'])
         return value
-    
+
     def extract(self, page_string):
         try:
             begin_match_end = 0
@@ -186,21 +170,13 @@ class ItemRule(Rule):
                 begin_match = self.begin_rule.search(page_string)
                 begin_match_end = begin_match.end()
             end_match_start = len(page_string)
-<<<<<<< HEAD
-            if self.end_regex:
-                end_match = self.end_rule.search(page_string[begin_match_end:])
-                end_match_start = end_match.start()
-            extract = page_string[begin_match_end:begin_match_end+end_match_start]
-            begin_index = begin_match_end
-            end_index = begin_match_end+end_match_start
-=======
             end_match_end = len(page_string)
-            
+
             if self.end_regex:
                 end_match = self.end_rule.search(page_string[begin_match_end:])
                 end_match_start = end_match.start()
                 end_match_end   = end_match.end()
-            
+
             if self.include_end_regex:
                 extract = page_string[begin_match_end:begin_match_end+end_match_end]
                 begin_index = begin_match_end
@@ -209,80 +185,65 @@ class ItemRule(Rule):
                 extract = page_string[begin_match_end:begin_match_end+end_match_start]
                 begin_index = begin_match_end
                 end_index = begin_match_end+end_match_start
-            
+
             if extract and self.strip_end_regex:
                 extract = re.sub(self.strip_end_regex+'$', '', extract)
                 end_index = begin_index + len(extract)
->>>>>>> 5ea4310f118c8c4ec449be36e2715abc05fdd9dc
         except:
             extract = ''
             begin_index = -1
             end_index = -1
         return {'extract': extract,'begin_index':begin_index,'end_index':end_index}
-    
+
     def toolTip(self):
         return 'BEGIN RULE: ' + cgi.escape(self.begin_rule.pattern) + '<hr>END RULE: ' + cgi.escape(self.end_rule.pattern)
-    
+
     def toJson(self):
         json_dict = {}
         json_dict['name'] = self.name
         json_dict['rule_type'] = ITEM_RULE
         json_dict['begin_regex'] = self.begin_regex
-<<<<<<< HEAD
-        json_dict['end_regex'] = self.end_regex
-=======
         json_dict['include_end_regex'] = self.include_end_regex
         json_dict['end_regex'] = self.end_regex
         json_dict['strip_end_regex'] = self.strip_end_regex
->>>>>>> 5ea4310f118c8c4ec449be36e2715abc05fdd9dc
         if self.sub_rules:
             json_dict['sub_rules'] = json.loads(self.sub_rules.toJson())
         return json.dumps(json_dict)
-    
+
     def validate(self, value):
         valid = True
-        
+
         if self.validation_regex:
             valid = self.validation_regex.match(value['extract'])
         if not valid:
             print 'Validation Failed for ['+self.name+']: ' + value['extract']
-<<<<<<< HEAD
-=======
             return valid
->>>>>>> 5ea4310f118c8c4ec449be36e2715abc05fdd9dc
-        
+
         #TODO: Check the sub rules validation
         if self.sub_rules:
             valid = self.sub_rules.validate(value['sub_rules'])
-        
+
         return valid
-    
-<<<<<<< HEAD
-    def __init__(self, name, begin_regex, end_regex, validation = None, removehtml = False, sub_rules = None):
-=======
+
     def __init__(self, name, begin_regex, end_regex, include_end_regex = False,
                  strip_end_regex = None, validation = None, removehtml = False,
                  sub_rules = None):
->>>>>>> 5ea4310f118c8c4ec449be36e2715abc05fdd9dc
         Rule.__init__(self, name, validation, removehtml, sub_rules)
         self.begin_rule = re.compile(begin_regex, re.S)
         self.end_rule = re.compile(end_regex, re.S)
-        
+
         self.begin_regex = begin_regex
         self.end_regex = end_regex
-<<<<<<< HEAD
-=======
         self.include_end_regex = include_end_regex
         self.strip_end_regex = strip_end_regex
->>>>>>> 5ea4310f118c8c4ec449be36e2715abc05fdd9dc
-        
+
 class IterationRule(ItemRule):
-    
+
     """ Rule to apply a begin set and single end regex and return all values """
     def apply(self, page_string):
         base_extract = self.extract(page_string)
         start_page_string = base_extract['extract']
-        
+
         sequence_number = 1
         extracts = []
         start_index = 0
@@ -290,41 +251,27 @@ class IterationRule(ItemRule):
         while start_index < len(start_page_string):
             try:
                 if start_index == 0 and self.no_first_begin_iter_rule:
-<<<<<<< HEAD
-                    begin_match_start = 0
                     begin_match_end = 0
                 else:
                     begin_match = self.iter_begin_rule.search(start_page_string[start_index:])
-                    begin_match_start = begin_match.start()
-=======
-                    begin_match_end = 0
-                else:
-                    begin_match = self.iter_begin_rule.search(start_page_string[start_index:])
->>>>>>> 5ea4310f118c8c4ec449be36e2715abc05fdd9dc
                     begin_match_end = begin_match.end()
-                
+
                 end_match = self.iter_end_rule.search(start_page_string[start_index+begin_match_end:])
                 value = start_page_string[start_index+begin_match_end:start_index+begin_match_end+end_match.start()]
                 if 0 < len(value.strip()) < MAX_EXTRACT_LENGTH:
                     extracts.append({'extract':value,'begin_index':start_index+begin_match_end+base_extract['begin_index'],'end_index':start_index+begin_match_end+end_match.start()+base_extract['begin_index'],'sequence_number':sequence_number})
                     sequence_number = sequence_number + 1
-<<<<<<< HEAD
-                start_index = start_index+begin_match_start+end_match.start()
-            except:
-                if self.no_last_end_iter_rule:
-=======
                 start_index = start_index+begin_match_end+end_match.start()
+
             except:
                 if self.no_last_end_iter_rule and begin_match_end >= 0:
->>>>>>> 5ea4310f118c8c4ec449be36e2715abc05fdd9dc
                     end_match_start = len(start_page_string)
                     value = start_page_string[start_index+begin_match_end:start_index+begin_match_end+end_match_start]
                     if 0 < len(value.strip()) < MAX_EXTRACT_LENGTH:
                         extracts.append({'extract':value,'begin_index':start_index+begin_match_end+base_extract['begin_index'],'end_index':start_index+begin_match_end+end_match_start+base_extract['begin_index'],'sequence_number':sequence_number})
                         sequence_number = sequence_number + 1
                 start_index = len(start_page_string)
-        
-<<<<<<< HEAD
+
         if self.sub_rules:
             for extract in extracts:
                 sub_extraction = self.sub_rules.extract(extract['extract'])
@@ -332,39 +279,13 @@ class IterationRule(ItemRule):
                     sub_extraction[sub_extract_name]['begin_index'] += extract['begin_index']
                     sub_extraction[sub_extract_name]['end_index'] += extract['begin_index']
                 extract['sub_rules'] = sub_extraction
-        
+
         for extract in extracts:
             extract['extract'] = self.remove_html(extract['extract'])
-        
+
         base_extract['sequence'] = extracts
         return base_extract
-    
-    def toJson(self):
-        json_dict = {}
-        json_dict['name'] = self.name
-        json_dict['rule_type'] = ITERATION_RULE
-        json_dict['begin_regex'] = self.begin_regex
-        json_dict['end_regex'] = self.end_regex
-        json_dict['iter_begin_regex'] = self.iter_begin_regex
-        json_dict['iter_end_regex'] = self.iter_end_regex
-        json_dict['no_first_begin_iter_rule'] = self.no_first_begin_iter_rule
-        json_dict['no_last_end_iter_rule'] = self.no_last_end_iter_rule
-        if self.sub_rules:
-=======
-        if self.sub_rules:
-            for extract in extracts:
-                sub_extraction = self.sub_rules.extract(extract['extract'])
-                for sub_extract_name in sub_extraction:
-                    sub_extraction[sub_extract_name]['begin_index'] += extract['begin_index']
-                    sub_extraction[sub_extract_name]['end_index'] += extract['begin_index']
-                extract['sub_rules'] = sub_extraction
-        
-        for extract in extracts:
-            extract['extract'] = self.remove_html(extract['extract'])
-        
-        base_extract['sequence'] = extracts
-        return base_extract
-    
+
     def toJson(self):
         json_dict = {}
         json_dict['name'] = self.name
@@ -378,38 +299,30 @@ class IterationRule(ItemRule):
         json_dict['no_first_begin_iter_rule'] = self.no_first_begin_iter_rule
         json_dict['no_last_end_iter_rule'] = self.no_last_end_iter_rule
         if self.sub_rules:
->>>>>>> 5ea4310f118c8c4ec449be36e2715abc05fdd9dc
             json_dict['sub_rules'] = json.loads(self.sub_rules.toJson())
         return json.dumps(json_dict)
-    
+
     def validate(self, value):
         valid = True
         for single_value in value['sequence']:
             if not ItemRule.validate(self, single_value):
                 valid = False
                 break
-            
+
             #TODO: Check the sub rules validation
             if self.sub_rules:
                 valid = self.sub_rules.validate(single_value['sub_rules'])
-        
+
         return valid
-    
+
     def __init__(self, name, begin_regex, end_regex, iter_begin_regex,
-<<<<<<< HEAD
-                 iter_end_regex, no_first_begin_iter_rule = False,
-                 no_last_end_iter_rule = False, validation = None, removehtml = False,
-                 sub_rules = None):
-        ItemRule.__init__(self, name, begin_regex, end_regex, validation, removehtml, sub_rules)
-=======
-                 iter_end_regex, include_end_regex = False, backwards_end_regex = None, 
+                 iter_end_regex, include_end_regex = False, backwards_end_regex = None,
                  no_first_begin_iter_rule = False, no_last_end_iter_rule = False,
                  validation = None, removehtml = False, sub_rules = None):
-        
+
         ItemRule.__init__(self, name, begin_regex, end_regex, include_end_regex,
                           backwards_end_regex, validation, removehtml, sub_rules)
-        
->>>>>>> 5ea4310f118c8c4ec449be36e2715abc05fdd9dc
+
         self.iter_begin_regex = iter_begin_regex
         self.iter_end_regex = iter_end_regex
         self.iter_begin_rule = re.compile(iter_begin_regex, re.S)
@@ -423,36 +336,36 @@ class RuleSet:
         extraction_object = {}
         for rule in self.rules:
             extraction_object[rule.name] = rule.apply(page_str);
-        
+
         return extraction_object
-    
+
     def validate(self, extraction):
         for rule in self.rules:
             if not rule.validate(extraction[rule.name]):
                 return False
         return True
-    
+
     def names(self):
         names = []
         for rule in self.rules:
             names.append(rule.name)
         return names
-    
+
     def get(self, rule_name):
         for rule in self.rules:
             if rule.name == rule_name:
                 return rule
         return None
-    
+
     def add_rule(self, rule):
         self.rules.append(rule)
-    
+
     def toJson(self):
         json_list = []
         for rule in self.rules:
             json_list.append(json.loads(rule.toJson()))
         return json.dumps(json_list, sort_keys=True, indent=2, separators=(',', ': '))
-    
+
     def __init__(self, json_object=None):
         self.rules = []
         rule_list = []
@@ -462,7 +375,7 @@ class RuleSet:
                 rule_list.append(json_object)
             else:
                 rule_list = json_object
-                
+
             for rule_json in rule_list:
                 self.rules.append(loadRule(rule_json))
 
@@ -476,15 +389,15 @@ def main(argv=None):
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "fh", ["flatten", "help"])
-            
+
             flatten = False
-            
+
             for opt in opts:
                 if opt in [('-f', ''), ('--flatten', '')]:
                     flatten = True
                 if opt in [('-h', ''), ('--help', '')]:
                     raise Usage('python extraction/Landmark.py [OPTIONAL_PARAMS] [FILE_TO_EXTRACT] [RULES FILE]\n\t[OPTIONAL_PARAMS]: -f to flatten the result')
-                
+
         except getopt.error, msg:
             raise Usage(msg)
         if len(args) > 1:
@@ -506,18 +419,9 @@ def main(argv=None):
             json_str = myfile.read().encode('utf-8')
         json_object = json.loads(json_str)
         rules = RuleSet(json_object)
-        
+
         extraction_list = rules.extract(page_str)
-<<<<<<< HEAD
-        
-        if rules.validate(extraction_list):
-            if flatten:
-                print json.dumps(flattenResult(extraction_list), sort_keys=True, indent=2, separators=(',', ': '))
-            else:
-                print json.dumps(extraction_list, sort_keys=True, indent=2, separators=(',', ': '))
-=======
->>>>>>> 5ea4310f118c8c4ec449be36e2715abc05fdd9dc
-        
+
         if rules.validate(extraction_list):
             if flatten:
                 print json.dumps(flattenResult(extraction_list), sort_keys=True, indent=2, separators=(',', ': '))

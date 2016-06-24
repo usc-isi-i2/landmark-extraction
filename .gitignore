@@ -60,5 +60,18 @@ target/
 #PyDev
 *.pydevproject
 .project
+<<<<<<< HEAD
 
 
+=======
+.idea/*
+src/.idea/*
+
+sample/sample_files/*
+sample/rule_files/*
+sample/sample_json_files/*
+sample/sample_seq_files/*
+
+
+src/landmark.mod
+>>>>>>> c037b139bd0e2e279f2ebb7610883f7f6e5b911b

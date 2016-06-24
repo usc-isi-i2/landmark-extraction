@@ -32,7 +32,6 @@ jExtractionFiles = json.loads(jExtractionFilesStr)
 for line in sys.stdin:
     # remove leading and trailing whitespace
     line = line.strip()
-    #sys.stderr.write("\nGot line:" + line)
     if len(line) > 0:
         try:
             
@@ -42,8 +41,12 @@ for line in sys.stdin:
                 sys.stderr.write("\nGot json:" + json_source)
                 json_object = json.loads(json_source)
 
-                html = json_object['_source']['raw_content']
-
+                if 'raw_content' in json_object['_source']:
+                    html = json_object['_source']['raw_content']
+                elif 'html' in json_object['_source']:
+                    html = json_object['_source']['html']
+                else:
+                    html = None
 
                 url = json_object['_source']['url']
 
@@ -72,9 +75,7 @@ for line in sys.stdin:
                                      roots = extractionFile['roots']
                                 break
 
-
-
-                if rules is not None:
+                if rules is not None and html is not None:
 
                     extraction_list = rules.extract(html)
 
@@ -82,12 +83,15 @@ for line in sys.stdin:
 
                     flatten['url'] = url
                     flatten['timestamp'] = json_object['_source']['timestamp']
-                    flatten['team'] = json_object['_source']['team']
-                    flatten['crawler'] = json_object['_source']['crawler']
+
+                    if 'team' in json_object['_source']:
+                        flatten['team'] = json_object['_source']['team']
+                    
+                    if 'crawler' in json_object['_source']: 
+                        flatten['crawler'] = json_object['_source']['crawler']
 
                     urlhash = hashlib.sha1(url.encode('utf-8')).hexdigest().upper()
                     uri = "page/" + urlhash + "/" + str(json_object['_source']['timestamp']) + "/processed"
-
 
                     if 'tikametadata' in json_object['_source']:
                         flatten['tikametadata'] = json_object['_source']['tikametadata']
@@ -96,16 +100,32 @@ for line in sys.stdin:
 
                     if 'raw_text' in json_object['_source']:
                         flatten['raw_text'] = json_object['_source']['raw_text']
+                        sys.stderr.write("FOUND raw_text: " + url)
+                    elif 'text' in json_object['_source']:
+                        flatten['raw_text'] = json_object['_source']['text']
+                        sys.stderr.write("FOUND text: " + url)
                     else:
                         flatten['raw_text'] = ''
 
                     if 'rawtextdetectedlanguage' in json_object['_source']:
                         flatten['rawtextdetectedlanguage'] = json_object['_source']['rawtextdetectedlanguage']
+                    elif 'language' in json_object['_source']:
+                        flatten['rawtextdetectedlanguage'] = json_object['_source']['language']
                     else:
                         flatten['rawtextdetectedlanguage'] = ''
 
-                    flatten['model_uri'] = model_uri
-                    flatten['roots'] = roots
+                    if 'email_addresses' in json_object['_source']:
+                        flatten['email_addresses'] = json_object['_source']['email_addresses']
+                    else:
+                        flatten['email_addresses'] = ''
+
+                    if 'bitcoin_addresses' in json_object['_source']:
+                        flatten['bitcoin_addresses'] = json_object['_source']['bitcoin_addresses']
+                    else:
+                        flatten['bitcoin_addresses'] = ''
+
+                    #flatten['model_uri'] = model_uri
+                    #flatten['roots'] = roots
 
                     sys.stderr.write("\nURL:" + flatten['url'])
                     sys.stderr.write("\nProcessed JSON:" + json.dumps(flatten))
