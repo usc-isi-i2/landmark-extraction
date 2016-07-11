@@ -282,40 +282,6 @@ class TokenList(list):
         return self.getTokensAsString(0, len(self))
 
 class Page(object):
-    def getId(self):
-        return self._id
-    
-    def getString(self):
-        return self.string
-    
-    def uniqueOnPage(self, sub_string):
-        string_unicode = unicode(sub_string, 'utf-8', 'ignore')
-#         string_normal = unicodedata.normalize('NFKD', string_unicode).encode('ascii', 'ignore')
-        string_normal = string_unicode
-        indexes = [[m.start(), m.start()+len(string_normal)] for m in re.finditer(re.escape(string_normal), self.string)]
-        if len(indexes) == 1:
-            return indexes[0]
-        elif len(indexes) < 1:
-            return None
-        return [-1,-1]
-    
-    def number_of_times_on_page(self, stripe, interval):
-        page_sub_string = self.tokens.getTokensAsString(interval[0], interval[1])
-        matches = re.findall(re.escape(stripe['stripe']), page_sub_string)
-#         print "interval = " + page_sub_string
-#         print "Found " + str(stripe['stripe']) + " " + str(len(matches)) + " times in interval"
-        return len(matches)
-    
-    def get_location(self, tuple_size, token):
-        try:
-            location = self.tuple_locations_by_size[tuple_size][unicode(token)]
-        except KeyError, e:
-                location = []
-        return location
-    
-    def get_token(self, index):
-        return self.tokens[index]
-    
     def __init__(self, page_id, page_string, largest_tuple_size = 3, add_special_tokens = True):
         self._id = page_id
         if isinstance(page_string, str):
@@ -375,10 +341,49 @@ class Page(object):
                 tuple_locations[tuple_iter].append(count)
                 count = count + 1
             self.tuple_locations_by_size[size] = tuple_locations
-
+    
+    def getId(self):
+        return self._id
+    
+    def getString(self):
+        return self.string
+    
+    def uniqueOnPage(self, sub_string):
+        string_unicode = unicode(sub_string, 'utf-8', 'ignore')
+#         string_normal = unicodedata.normalize('NFKD', string_unicode).encode('ascii', 'ignore')
+        string_normal = string_unicode
+        indexes = [[m.start(), m.start()+len(string_normal)] for m in re.finditer(re.escape(string_normal), self.string)]
+        if len(indexes) == 1:
+            return indexes[0]
+        elif len(indexes) < 1:
+            return None
+        return [-1,-1]
+    
+    def number_of_times_on_page(self, stripe, interval):
+        page_sub_string = self.tokens.getTokensAsString(interval[0], interval[1])
+        matches = re.findall(re.escape(stripe['stripe']), page_sub_string)
+#         print "interval = " + page_sub_string
+#         print "Found " + str(stripe['stripe']) + " " + str(len(matches)) + " times in interval"
+        return len(matches)
+    
+    def get_location(self, tuple_size, token):
+        try:
+            location = self.tuple_locations_by_size[tuple_size][unicode(token)]
+        except KeyError, e:
+                location = []
+        return location
+    
+    def get_token(self, index):
+        return self.tokens[index]
 
 class PageManager(object):
-    
+    def __init__(self, write_debug_files = False, largest_tuple_size = 6):
+        self._pages = {}
+        self.seed_page_id = None
+        self.max_level = 1
+        self._WRITE_DEBUG_FILES = write_debug_files
+        self.largest_tuple_size = largest_tuple_size
+        
     def getStripes(self):
         return self._stripes
     
@@ -477,6 +482,24 @@ class PageManager(object):
                 token_buffer += "\n-------------\n"
         return token_buffer
     
+    def getStripeFragmentsForSlot(self, start_stripe, direction = 'begin'):
+        stripe_fragments = []
+        stripes_to_check = []
+        if direction == 'begin':
+            stripes_to_check = reversed(self._stripes[:self._stripes.index(start_stripe)+1])
+        elif direction == 'end':
+            stripes_to_check = self._stripes[self._stripes.index(start_stripe):]
+            
+        previous_loc = start_stripe['page_locations'][self.seed_page_id] + start_stripe['tuple_size']
+        for stripe in stripes_to_check:
+            if stripe['page_locations'][self.seed_page_id] + stripe['tuple_size'] == previous_loc:
+                stripe_fragments.insert(0, stripe)
+                previous_loc = stripe['page_locations'][self.seed_page_id]
+            else:
+                break
+            
+        return stripe_fragments
+    
     def getDebugOutputBuffer(self, page_id):
         counter = 0;
         start_index = 0;
@@ -536,9 +559,6 @@ class PageManager(object):
             list_name = '_list'+format(count, '04')
             count += 1
             
-            print "=====lists"
-            print list_name
-            
             row_page_manager = PageManager(self._WRITE_DEBUG_FILES)
             
             for page_id in list_location['pages'].keys():
@@ -588,9 +608,9 @@ class PageManager(object):
                     row_page_manager.addPage(list_name+page_name, page.tokens.getTokensAsString(start, end, True), False)
 
             row_page_manager.learnStripes()
-            row_rules = row_page_manager.learnAllRules(True)
+            row_rules = row_page_manager.learnAllRules(in_list=True)
             if len(row_rules.rules) > 1:
-                row_markups, names = row_page_manager.rulesToMarkup(row_rules, True)
+                row_markups, names = row_page_manager.rulesToMarkup(row_rules, remove_html=True)
                 list_names[list_name] = names
                 for markup_page in row_markups.keys():
                     page_id =  markup_page.split('.html')[0][len(list_name):] + '.html'
@@ -698,7 +718,7 @@ class PageManager(object):
             
             for markup in markups[page_id]:
                 #TODO: ADD starting_token_location and end_token_location
-                if 'extract' in markups[page_id][markup]:
+                if 'extract' in markups[page_id][markup] and 'sequence' not in markups[page_id][markup]:
                     shortest_pairs = self.getPossibleLocations(page_id, markups[page_id][markup]['extract'])
                     if not shortest_pairs:
                         logger.info("Unable to find markup for %s on page %s: %s", markup, page_id, markups[page_id][markup]['extract'])
@@ -751,6 +771,10 @@ class PageManager(object):
         start_time = time.time()
         unsorted_stripes = self.__create_stripes_recurse__(intervals, self.largest_tuple_size)
         logger.info("--- RECURSIVE CREATE STRIPES: %s seconds ---" % (time.time() - start_time))
+        
+        if not unsorted_stripes:
+            self._stripes = []
+            return
         
         start_time = time.time()
         sorted_unmerged_stripes = []
@@ -834,6 +858,9 @@ class PageManager(object):
         return markup, names
         
     def learnAllRules(self, in_list = False):
+        if not self._stripes:
+            return RuleSet()
+        
         rule_set = RuleSet()
         previous_stripe = None
         count = 0
@@ -873,47 +900,12 @@ class PageManager(object):
                         rule_name = ''
                         visible_chunk_before = ''
                         visible_chunk_after = ''
-                        tokens = []
                         if not in_list:
-                            #get visible token(s) before for the name
-                            start_location = begin_stripes[-1]['page_locations'][self.seed_page_id] + begin_stripes[-1]['tuple_size'] - 1
-                            
-                            page = self.getPage(self.seed_page_id)
-                            for i in range(start_location, 0, -1):
-                                token = page.tokens[i]
-                                if token.visible and token.token not in cachedStopWords and token.token not in string.punctuation:
-                                    count = count + 1
-                                    tokens.insert(0, token.token)
-                                    
-                                if len(tokens) == 1:
-                                    break
-                            
                             #get visible chunk(s) before
-                            end_location = begin_stripes[-1]['page_locations'][self.seed_page_id]
-                            visible_token_count = 0
-                            for i in range(start_location, end_location, -1):
-                                token = page.tokens[i]
-                                if token.visible:
-                                    visible_chunk_before = token.getTokenWithWhitespace() + visible_chunk_before
-                                    visible_token_count = visible_token_count + 1
-                                elif visible_token_count > 0:
-                                    break
-                            
-                            #and after
-                            start_location = end_stripes[0]['page_locations'][self.seed_page_id]
-                            end_location = start_location + end_stripes[0]['tuple_size']
-                            visible_token_count = 0
-                            for i in range(start_location, end_location):
-                                token = page.tokens[i]
-                                if token.visible:
-                                    visible_chunk_after += token.getTokenWithWhitespace()
-                                    visible_token_count = visible_token_count + 1
-                                elif visible_token_count > 0:
-                                    break
-                            
-                        rule_name = ''.join(tokens)+format(count, '04')
-                        visible_chunk_before = visible_chunk_before.strip()
-                        visible_chunk_after = visible_chunk_after.strip()
+                            (visible_chunk_before, visible_chunk_after) = self.__get_visible_chunk_buffers(begin_stripes, end_stripes)
+                            rule_name = ''.join(visible_chunk_before.split())
+                        
+                        rule_name = rule_name+format(count, '04')
                         rule = ItemRule(rule_name, start_rule, end_rule, True, strip_end_regex)
                         if len(visible_chunk_before) > 0:
                             rule.set_visible_chunk_before(visible_chunk_before)
@@ -991,6 +983,48 @@ class PageManager(object):
                 rule_set.add_rule(rule)
             
         return rule_set
+    
+    #get all visible text before and after until hit a visible slot
+    # 
+    
+    #until hit visible slot
+    
+    def __get_visible_chunk_buffers(self, begin_stripes, end_stripes):
+        visible_chunk_before = ''
+        visible_chunk_after = ''
+        
+        page = self.getPage(self.seed_page_id)
+         
+        #get visible chunk(s) before
+        if begin_stripes:
+            real_stripe = self.getStripeFragmentsForSlot(begin_stripes[-1])
+            start_location = real_stripe[-1]['page_locations'][self.seed_page_id] + real_stripe[-1]['tuple_size'] - 1
+            end_location = real_stripe[0]['page_locations'][self.seed_page_id]
+            visible_token_count = 0
+            for i in range(start_location, end_location, -1):
+                token = page.tokens[i]
+                if token.visible:
+                    visible_chunk_before = token.getTokenWithWhitespace() + visible_chunk_before
+                    if token.token not in cachedStopWords and token.token not in string.punctuation:
+                        visible_token_count = visible_token_count + 1
+                elif visible_token_count > 0:
+                    break
+         
+        #and after
+        if end_stripes:
+            real_stripe = self.getStripeFragmentsForSlot(end_stripes[0])
+            start_location = real_stripe[0]['page_locations'][self.seed_page_id]
+            end_location = real_stripe[-1]['page_locations'][self.seed_page_id] + real_stripe[-1]['tuple_size']
+            visible_token_count = 0
+            for i in range(start_location, end_location):
+                token = page.tokens[i]
+                if token.visible:
+                    visible_chunk_after += token.getTokenWithWhitespace()
+                    visible_token_count = visible_token_count + 1
+                elif visible_token_count > 0:
+                    break
+        
+        return (visible_chunk_before.strip(), visible_chunk_after.strip())
     
     def __learn_item_rule(self, key, pages):
         isSequence = False
@@ -1074,6 +1108,12 @@ class PageManager(object):
             #TODO: HACK for ISI to not get HTML for extractions
             rule = ItemRule(key, start_rule, end_rule, True, strip_end_regex, None, not isSequence)
 #             rule = ItemRule(key, start_rule, end_rule, True, strip_end_regex)
+
+            (visible_chunk_before, visible_chunk_after) = self.__get_visible_chunk_buffers(begin_stripes, end_stripes)
+            if visible_chunk_before:
+                rule.set_visible_chunk_before(visible_chunk_before)
+            if visible_chunk_after:
+                rule.set_visible_chunk_after(visible_chunk_after)
             
         return (rule, isSequence, hasSubRules)
     
@@ -1109,7 +1149,8 @@ class PageManager(object):
                         if stripe['page_locations'][page_id] in list_range:
                             stripes_to_remove.append(stripe)
                     self._stripes = [x for x in self._stripes if x not in stripes_to_remove]
-                page_markup[page_id]['extract'] = extract + LONG_EXTRACTION_SEP + end_extract            
+                if extract and end_extract:
+                    page_markup[page_id]['extract'] = extract + LONG_EXTRACTION_SEP + end_extract            
             (item_rule, isSequence, hasSubRules) = self.__learn_item_rule(key, pages)
         
         if item_rule is None:
@@ -1293,7 +1334,7 @@ class PageManager(object):
             # Go in the stripes in reverse on the begin side until we hit a level 1
             begin_stripes = []
             for test_stripe in list(reversed(begin_sequence_page_manager._stripes)):
-                begin_stripes.append(test_stripe)
+                begin_stripes.insert(0, test_stripe)
                 if test_stripe['level'] == 1:
                     break
             begin_iter_rule = begin_sequence_page_manager.buildRule(begin_stripes)
@@ -1869,6 +1910,9 @@ class PageManager(object):
         return shortest_pair
 
     def __create_stripes_recurse__(self, intervals, tuple_size, level = 1):
+        if not self.seed_page_id:
+            return []
+        
         if level > self.max_level:
             self.max_level = level
         logger.info("=== Checking Intervals (tuple_size="+str(tuple_size)+"), (level="+str(level)+"): " + str(intervals) )
@@ -2181,13 +2225,4 @@ class PageManager(object):
             return self.__find_last_mile_recurse(start_indexes, goto_points, direction, last_mile)
         else:
             return last_mile
-            
-
-    def __init__(self, write_debug_files = False, largest_tuple_size = 6):
-        self._pages = {}
-        self.seed_page_id = None
-        self.max_level = 1
-        self._WRITE_DEBUG_FILES = write_debug_files
-        self.largest_tuple_size = largest_tuple_size
-
     

@@ -402,7 +402,7 @@ class TreeListLearner(object):
         sublist_sub_rules = {}
         for sublist in sublist_page_managers:
             sublist_page_managers[sublist].learnStripes()
-            sub_rules = sublist_page_managers[sublist].learnAllRules()
+            sub_rules = sublist_page_managers[sublist].learnAllRules(in_list = True)
             sublist_sub_rules[sublist] = sub_rules  # This should match a rule name in the rules...
 
         count = 1 
