@@ -11,6 +11,7 @@ import urllib
 import urllib2
 from extraction.Landmark import RuleSet, flattenResult
 from learning.PageManager import PageManager
+from learning.DivListLearner import DivListLearner
 import codecs
 import chardet
 import shutil
@@ -35,8 +36,9 @@ def download_url(project_folder, page_url):
 
     file_location = os.path.join(app.static_folder, 'project_folders', project_folder, file_name)
 
-    req = urllib2.urlopen(page_url)
-    page_contents = req.read()
+    req = urllib2.Request(page_url, headers={'User-Agent' : "Magic Browser"}) 
+    con = urllib2.urlopen(req)
+    page_contents = con.read()
 
     # Need to figure out the encoding issues for this!
     # file_location = os.path.join(app.static_folder, 'project_folders', project_folder, file_name)
@@ -67,8 +69,39 @@ def download_url(project_folder, page_url):
 @app.route('/learning')
 @app.route('/extraction')
 @app.route('/projects')
+@app.route('/visible_test')
 def basic_pages(**kwargs):
     return make_response(open('angular_flask/templates/index.html').read())
+
+## for Steve's Visible Tokens View
+@app.route('/visible_tokens', methods=['POST'])
+def visible_token_viewer():
+    if request.method == 'POST':
+        data = request.get_json(force=True)
+        test_string = data['test_string']
+        test_string = ' '.join(test_string.split())
+        pageManager = PageManager()
+        page_file_dir = os.path.join(app.static_folder, 'visible_tokens_test')
+        files = [f for f in os.listdir(page_file_dir) if os.path.isfile(os.path.join(page_file_dir, f))]
+        for the_file in files:
+            if the_file.startswith('.'):
+                continue
+            
+            with codecs.open(os.path.join(page_file_dir, the_file), "r", "utf-8") as myfile:
+                page_str = myfile.read().encode('utf-8')
+            
+            pageManager.addPage(the_file, page_str)
+        triples = []
+        for triple in pageManager.getVisibleTokenStructure():
+            if triple['invisible_token_buffer_before'].endswith(test_string):
+                triples.append(triple)
+        return jsonify(triples=triples)
+
+@app.route('/visible_tokens_pages')
+def visible_token_pages():
+    page_file_dir = os.path.join(app.static_folder, 'visible_tokens_test')
+    files = [f for f in os.listdir(page_file_dir) if os.path.isfile(os.path.join(page_file_dir, f))]
+    return jsonify(files=files)
 
 @app.route('/add_markup_url', methods=['POST'])
 def add_markup_url():
@@ -90,6 +123,103 @@ def change_page_name():
         os.rename(old_file, new_file)
 
         return jsonify(new_file_name = new_file_name)
+
+@app.route('/delete_rule', methods=['POST'])
+def delete_rule():
+    if request.method == 'POST':
+        data = request.get_json(force=True)
+        project_folder = data['project_folder']
+        rule_name = data['rule_name']
+
+        directory = os.path.join(app.static_folder, 'project_folders', project_folder)
+        rules_file = os.path.join(directory, 'learning', 'rules.json')
+        with codecs.open(rules_file, "r", "utf-8") as myfile:
+            json_str = myfile.read().encode('utf-8')
+        rules = json.loads(json_str)
+
+        rule_to_remove = None
+        for rule in rules:
+            if rule['name'] == rule_name:
+                rule_to_remove = rule
+                break
+        if rule_to_remove:
+            rules.remove(rule_to_remove)
+
+        with codecs.open(rules_file, "w", "utf-8") as myfile:
+            myfile.write(json.dumps(rules, sort_keys=True, indent=2, separators=(',', ': ')))
+            myfile.close()
+
+        markup_file = os.path.join(directory, 'learning', 'markup.json')
+        with codecs.open(markup_file, "r", "utf-8") as myfile:
+            json_str = myfile.read().encode('utf-8')
+        markup = json.loads(json_str)
+
+        for key in markup:
+            if rule_name in markup[key]:
+                markup[key].pop(rule_name)
+
+        # TODO: We are only looking at the highest level right now
+        # then update the __SCHEMA__
+        node_to_remove = None
+        for node in markup['__SCHEMA__'][0]['children']:
+            if node['text'] == rule_name:
+                node_to_remove = node
+                break
+        if node_to_remove:
+            markup['__SCHEMA__'][0]['children'].remove(node)
+
+        with codecs.open(markup_file, "w", "utf-8") as myfile:
+            myfile.write(json.dumps(markup, sort_keys=True, indent=2, separators=(',', ': ')))
+            myfile.close()
+
+        return jsonify(markup=markup, rules=rules)
+
+
+@app.route('/rename_rule', methods=['POST'])
+def rename_rule():
+    if request.method == 'POST':
+        data = request.get_json(force=True)
+        project_folder = data['project_folder']
+        old_rule_name = data['old_rule_name']
+        new_rule_name = data['new_rule_name']
+
+        directory = os.path.join(app.static_folder, 'project_folders', project_folder)
+        rules_file = os.path.join(directory, 'learning', 'rules.json')
+        with codecs.open(rules_file, "r", "utf-8") as myfile:
+            json_str = myfile.read().encode('utf-8')
+        rules = json.loads(json_str)
+
+        for rule in rules:
+            if rule['name'] == old_rule_name:
+                rule['name'] = new_rule_name
+                break
+
+        with codecs.open(rules_file, "w", "utf-8") as myfile:
+            myfile.write(json.dumps(rules, sort_keys=True, indent=2, separators=(',', ': ')))
+            myfile.close()
+
+        markup_file = os.path.join(directory, 'learning', 'markup.json')
+        with codecs.open(markup_file, "r", "utf-8") as myfile:
+            json_str = myfile.read().encode('utf-8')
+        markup = json.loads(json_str)
+
+        for item in markup:
+            if old_rule_name in markup[item]:
+                markup[item][new_rule_name] = markup[item].pop(old_rule_name)
+
+        # TODO: We are only looking at the highest level right now
+        #then update the __SCHEMA__
+        for node in markup['__SCHEMA__'][0]['children']:
+            if node['text'] == old_rule_name:
+                node['text'] = new_rule_name
+                break
+
+        with codecs.open(markup_file, "w", "utf-8") as myfile:
+            myfile.write(json.dumps(markup, sort_keys=True, indent=2, separators=(',', ': ')))
+            myfile.close()
+
+        return jsonify(markup=markup, rules=rules)
+
 
 @app.route('/markup_on_page', methods=['POST'])
 def markup_on_page():
@@ -237,8 +367,42 @@ def save_markup():
             list_names = {}
             if LEARN_LISTS:
                 (list_markup, list_names) = pageManager.learnListMarkups()
+                
+                #This is the div learning
+                train_pages = {}
+                for page_id in pageManager._pages:
+                    train_pages[page_id] = pageManager.getPage(page_id).getString()
+                d = DivListLearner()
+                div_rules, div_markup = d.run(train_pages)
+                 
+                (div_list_markup, div_list_names) = pageManager.listRulesToMarkup(div_rules)
+                
+                for page_id in div_markup:
+                    for item in div_markup[page_id]:
+                        if item in div_list_markup[page_id]:
+                            if 'starting_token_location' in div_markup[page_id][item]:
+                                div_list_markup[page_id][item]['starting_token_location'] = div_markup[page_id][item]['starting_token_location']
+                            if 'ending_token_location' in div_markup[page_id][item]:
+                                div_list_markup[page_id][item]['ending_token_location'] = div_markup[page_id][item]['ending_token_location']
+                            if div_markup[page_id][item]['sequence']:
+                                for idx, val in enumerate(div_markup[page_id][item]['sequence']):
+                                    if len(div_list_markup[page_id][item]['sequence']) <= idx:
+                                        div_list_markup[page_id][item]['sequence'].insert(idx, val);
+                                    else:
+                                        div_list_markup[page_id][item]['sequence'][idx]['starting_token_location'] = val['starting_token_location']
+                                        div_list_markup[page_id][item]['sequence'][idx]['ending_token_location'] = val['ending_token_location']
+                
+                #Now add these to the list_markup and list_names
+                if len(div_rules.rules) > 0:
+                    for page_id in div_list_markup:
+                        if page_id not in list_markup:
+                            list_markup[page_id] = {}
+                        list_markup[page_id].update(div_list_markup[page_id])
+                    list_names.update(div_list_names)
+            
             rule_set = pageManager.learnAllRules()
             rule_set.removeBadRules(test_pages)
+            
             (markup, names) = pageManager.rulesToMarkup(rule_set)
 
             for key in markup.keys():

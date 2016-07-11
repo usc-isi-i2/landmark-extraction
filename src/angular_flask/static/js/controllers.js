@@ -8,32 +8,31 @@ app.controller('HeaderController', ['$scope', '$route', '$rootScope','$location'
 
 function HeaderController($scope, $route, $rootScope, $location, $window, $http, $attrs) {
 
-	$http({method:"GET", url:"/project_folders"}).then(function(response){
-        $rootScope.project_folders = response.data.project_folders;
-        $rootScope.project_folders.push("+ Add New Project");
-        $rootScope.project_folders.unshift("-- Select Project --");
-    });
-
-	// GlobalProjectFolderService.project_folders().then(function(data) {
-	// 	$rootScope.project_folders = data;
-	// });
 	$rootScope.selected_project_folder = "-- Select Project --";
-
+	$rootScope.project_filter = "";
 	$rootScope.onChangeFunction = null;
 
+	$http({method:"GET", url:"/project_folders"}).then(function(response){
+        $rootScope.project_folders = response.data.project_folders;
+		$rootScope.filtered_project_folders = $rootScope.project_folders;
+		$scope.changeProjectFilter();
+        // $rootScope.filtered_project_folders.push("+ Add New Project");
+        // $rootScope.filtered_project_folders.unshift("-- Select Project --");
+    });
+
 	$scope.changeSelectedProject = function() {
-		if($rootScope.selected_project_folder != "-- Select Project --") {
-			var index = $rootScope.project_folders.indexOf("-- Select Project --");
+		if($rootScope.filtered_project_folders != "-- Select Project --") {
+			var index = $rootScope.filtered_project_folders.indexOf("-- Select Project --");
 			if (index > -1) {
-    			$rootScope.project_folders.splice(index, 1);
+    			$rootScope.filtered_project_folders.splice(index, 1);
 			}
 		}
 
-		if($rootScope.selected_project_folder == "+ Add New Project") {
+		if($rootScope.filtered_project_folders == "+ Add New Project") {
 			$location.path('/markup');
 		}
 
-		else if($rootScope.selected_project_folder == "-- Select Project --") {
+		else if($rootScope.filtered_project_folders == "-- Select Project --") {
 			$location.path('/');
 		}
 
@@ -42,11 +41,20 @@ function HeaderController($scope, $route, $rootScope, $location, $window, $http,
 		}
 	}
 
-	// $scope.selected_project_folder = "__select_project__";
+	$scope.changeProjectFilter = function() {
+		$rootScope.filtered_project_folders = ["-- Select Project --"];
+		$rootScope.selected_project_folder = "-- Select Project --";
 
-	// $scope.changeSelectedProject = function() {
-	// 	GlobalProjectFolderService.select($scope.selected_project_folder);
-	// }
+		for (var i in $rootScope.project_folders) {
+			if($rootScope.filtered_project_folders.length > 35) {
+				break;
+			}
+			if($rootScope.project_folders[i].indexOf($rootScope.project_filter) > -1) {
+				$rootScope.filtered_project_folders.push($rootScope.project_folders[i]);
+			}
+		}
+		$rootScope.filtered_project_folders.push("+ Add New Project");
+	}
 }
 
 
@@ -56,10 +64,10 @@ function IndexController($scope, $location, $rootScope) {
 	$rootScope.onChangeFunction = function() {
 		$location.path('/markup');
 	};
-	if($rootScope.project_folders) {
-		var index = $rootScope.project_folders.indexOf("-- Select Project --");
+	if($rootScope.filtered_project_folders) {
+		var index = $rootScope.filtered_project_folders.indexOf("-- Select Project --");
 		if (index == -1) {
-			$rootScope.project_folders.unshift("-- Select Project --");
+			$rootScope.filtered_project_folders.unshift("-- Select Project --");
 		}
 	}
 
@@ -97,18 +105,53 @@ function MarkupController($scope, $http, $window, $rootScope) {
 			$('.loading').hide();
 		}
 		else {
-			var index = $rootScope.project_folders.indexOf("-- Select Project --");
+			var index = $rootScope.filtered_project_folders.indexOf("-- Select Project --");
 			if (index > -1) {
-				$rootScope.project_folders.splice(index, 1);
+				$rootScope.filtered_project_folders.splice(index, 1);
 			}
 
-			var index = $rootScope.project_folders.indexOf(project_folder);
+			var index = $rootScope.filtered_project_folders.indexOf(project_folder);
 			if (index == -1) {
-				$rootScope.project_folders.unshift(project_folder);
+				$rootScope.filtered_project_folders.unshift(project_folder);
 			}
 			$rootScope.selected_project_folder = project_folder;
 			load(project_folder);
 		}		
+	}
+
+	$scope.deletedRule = function(rule_name) {
+		var postdata = {
+			project_folder: $rootScope.selected_project_folder,
+			rule_name: rule_name
+		};
+		$http({
+			  method: 'POST',
+			  data: postdata,
+			  url: '/delete_rule'
+		}).then(function successCallback(response) {
+		    $('#markup-data').html(JSON.stringify(response.data.markup, null, 2).split('>').join('&gt;').split('<').join('&lt;'));
+		    $('#rules-data').html(JSON.stringify(response.data.rules, null, 2).split('>').join('&gt;').split('<').join('&lt;'));
+		  }, function errorCallback(response) {
+			console.log(response);
+		  });
+	}
+
+	$scope.renamedRule = function(old_rule_name, new_rule_name) {
+		var postdata = {
+			project_folder: $rootScope.selected_project_folder,
+			old_rule_name: old_rule_name,
+			new_rule_name: new_rule_name
+		};
+		$http({
+			  method: 'POST',
+			  data: postdata,
+			  url: '/rename_rule'
+		}).then(function successCallback(response) {
+		    $('#markup-data').html(JSON.stringify(response.data.markup, null, 2).split('>').join('&gt;').split('<').join('&lt;'));
+		    $('#rules-data').html(JSON.stringify(response.data.rules, null, 2).split('>').join('&gt;').split('<').join('&lt;'));
+		  }, function errorCallback(response) {
+			console.log(response);
+		  });
 	}
 
 	$rootScope.onChangeFunction = function() {
@@ -152,7 +195,19 @@ function ProjectsController($scope, $http, $rootScope) {
 
 						$http({method:"GET", url:"/project_folders"}).then(function(response){
 					        $rootScope.project_folders = response.data.project_folders;
-					        $rootScope.project_folders.push("+ Add New Project");
+
+
+							$rootScope.filtered_project_folders = ["-- Select Project --"];
+							$rootScope.selected_project_folder = "-- Select Project --";
+
+							for (var i in $rootScope.project_folders) {
+								if($rootScope.project_folders[i].indexOf($rootScope.project_filter) > -1) {
+									$rootScope.filtered_project_folders.push($rootScope.project_folders[i]);
+								}
+							}
+							$rootScope.filtered_project_folders.push("+ Add New Project");
+
+					        // $rootScope.project_folders.push("+ Add New Project");
 					        // $rootScope.project_folders.unshift("-- Select Project --");
 					    });
 					  }, function errorCallback(response) {
