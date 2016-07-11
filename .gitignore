@@ -1,3 +1,5 @@
+src/angular_flask/static/project_folders
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
