@@ -15,4 +15,5 @@ import controllers
 
 import extraction.Landmark
 import learning.PageManager
+import learning.DivListLearner
 import settings

@@ -343,3 +343,6 @@ h1 { font-size:1.8em; }
   }
 }
 /***** END LOADING *****/
+.project-filter {
+  width: 144px;
+}
