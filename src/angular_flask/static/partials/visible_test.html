@@ -1,0 +1,34 @@
+<div class="loading" style="display:none;">Loading&#8230;</div>
+
+<div class="container mainpage">
+	Visible test
+
+	<textarea ng-model="inputvalue" class="form-control" placeholder="Paste end of invisible text here..." rows="10"></textarea>
+
+	<div class="form-group" style="padding-top:10px;">
+		<button type="button" class="btn btn-primary" ng-click="runTest()">Test</button>
+	</div>
+
+	<div class="row" ng-show="results">
+		<table class="table table-striped">
+		<tr>
+		  <th style="max-width:150px;">File</th>
+		  <th>Visible Text</th>
+		  <th>Invisible Text Before</th>
+		</tr>
+		<tr ng-repeat="value in results.triples track by $index">
+ 		  <td style="max-width:150px; word-wrap: break-word;"><a target="_blank" href="/static/visible_tokens_test/{{value['page_id']}}">{{value['page_id']}}</a> / (<a target="_blank" href="/static/visible_tokens_test/visible_txts/{{value['page_id']}}_visible.txt">Visible tokens</a>)</td>
+		  <td>{{value['visible_token_buffer']}}</td>
+		  <td>{{value['invisible_token_buffer_before']}}</th>
+		</tr>
+		</table>
+	</div>
+
+	<div class="row" ng-repeat="file in visible_tokens_pages">
+		<a target="_blank" href="/static/visible_tokens_test/{{file}}">{{file}}</a> / (<a target="_blank" href="/static/visible_tokens_test/visible_txts/{{file}}_visible.txt">Visible tokens</a>)
+	</div>
+
+	<div class="form-group" ng-show="resultsraw">
+		<pre border="0"><code id="markup-data" class="language-json" data-lang="json" contenteditable="false">{{resultsraw}}</code></pre>
+    </div>
+</div>

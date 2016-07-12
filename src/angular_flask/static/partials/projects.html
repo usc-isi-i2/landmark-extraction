@@ -1,0 +1,26 @@
+<!-- 
+<div class="header-section">
+	<div class="row header-row">
+		<div class="span12 masthead">
+			<h1 class="heading">Extraction Tools</h1>
+		</div>
+	</div>
+</div>
+<div class="header-push">
+</div>
+ -->
+<div style="text-align:center;">
+	<h1>Saved Projects</h1>
+</div>
+<div>
+	<table class="table table-striped" style="margin-top: 50px;">
+	  <tr ng-repeat="project in project_folders track by $index">
+	    <td>{{project}}</td>
+	    <td>
+	    	<a href="" ng-click="deleteProject(project)"><i class="glyphicon glyphicon-trash" style="color:red;"/></a>
+	    </td>
+	    <td><a href="/downloads/{{project}}/rules" target="_blank" download>Rules <i class="glyphicon glyphicon-cloud-download"/></a></td>
+	    <td><a href="/downloads/{{project}}/markup" target="_blank" download>Markup <i class="glyphicon glyphicon-cloud-download"/></a></td>
+	  </tr>
+	</table>
+</div>

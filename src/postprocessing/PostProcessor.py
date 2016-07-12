@@ -64,6 +64,7 @@ class RemoveHtml(Processor):
         cleaned_input = re.sub(r'<BR\s*/?>', ' ', cleaned_input)
         cleaned_input = re.sub(r'<bR\s*/?>', ' ', cleaned_input)
         cleaned_input = re.sub(r'<Br\s*/?>', ' ', cleaned_input)
+        cleaned_input = re.sub(r'<a', ' <a', cleaned_input)
         Processor.__init__(self, cleaned_input)
         startAndEndOfTag = "<[^ \t][^>]*[^ \t]>"
         singleCharacterTag = "<[^ \t>]>"

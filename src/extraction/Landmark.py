@@ -142,6 +142,12 @@ class Rule:
     def set_sub_rules(self, sub_rules):
         self.sub_rules = sub_rules
 
+    def set_visible_chunk_before(self, visible_chunk_before):
+        self.visible_chunk_before = visible_chunk_before
+
+    def set_visible_chunk_after(self, visible_chunk_after):
+        self.visible_chunk_after = visible_chunk_after
+
     def __init__(self, name, validation = None, removehtml = False, sub_rules = None):
         self.name = name
         self.validation_regex = None
@@ -151,6 +157,8 @@ class Rule:
         self.sub_rules = []
         if sub_rules:
             self.sub_rules = RuleSet(sub_rules)
+        self.visible_chunk_before = None
+        self.visible_chunk_after = None
 
 class ItemRule(Rule):
     """ Rule to apply a begin set and single end regex and return only ONE value """
@@ -206,6 +214,11 @@ class ItemRule(Rule):
         json_dict['include_end_regex'] = self.include_end_regex
         json_dict['end_regex'] = self.end_regex
         json_dict['strip_end_regex'] = self.strip_end_regex
+        json_dict['removehtml'] = self.removehtml
+        if self.visible_chunk_before:
+            json_dict['visible_chunk_before'] = self.visible_chunk_before
+        if self.visible_chunk_after:
+            json_dict['visible_chunk_after'] = self.visible_chunk_after
         if self.sub_rules:
             json_dict['sub_rules'] = json.loads(self.sub_rules.toJson())
         return json.dumps(json_dict)
@@ -262,7 +275,6 @@ class IterationRule(ItemRule):
                     extracts.append({'extract':value,'begin_index':start_index+begin_match_end+base_extract['begin_index'],'end_index':start_index+begin_match_end+end_match.start()+base_extract['begin_index'],'sequence_number':sequence_number})
                     sequence_number = sequence_number + 1
                 start_index = start_index+begin_match_end+end_match.start()
-
             except:
                 if self.no_last_end_iter_rule and begin_match_end >= 0:
                     end_match_start = len(start_page_string)
@@ -365,6 +377,47 @@ class RuleSet:
         for rule in self.rules:
             json_list.append(json.loads(rule.toJson()))
         return json.dumps(json_list, sort_keys=True, indent=2, separators=(',', ': '))
+
+    #Must have over 50 chars and more than 50% html and on 50% of the pages through this one out
+    def removeBadRules(self, pages):
+        min_length = 50
+        percent_with_html_thresh = 0.5
+        percent_bad_thresh = 0.5
+        good_rules = RuleSet()
+        total_pages = len(pages)
+        for rule in self.rules:
+            previous_removehtml = rule.removehtml
+            rule.removehtml = False
+            num_bad = 0
+
+#             print 'Checking ' + rule.name
+            for page_str in pages:
+                extraction = rule.apply(page_str)
+                extract = extraction['extract']
+                original_length = len(extract)
+
+                if original_length > min_length and original_length > 0:
+                    processor = RemoveHtml(extract)
+                    value = processor.post_process()
+                    processor = RemoveExtraSpaces(value)
+                    value = processor.post_process()
+                    new_length = len(value)
+
+                    percentage = new_length/float(original_length)
+                    if percentage < percent_with_html_thresh:
+#                         print "BAD - " + extract
+                        num_bad += 1
+
+            bad_percentage = num_bad/float(total_pages)
+
+            if bad_percentage < percent_bad_thresh:
+                rule.removehtml = previous_removehtml
+                good_rules.add_rule(rule)
+#             else:
+#                 print bad_percentage
+        self.rules = []
+        for rule in good_rules.rules:
+            self.rules.append(rule)
 
     def __init__(self, json_object=None):
         self.rules = []
